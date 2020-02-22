@@ -50,7 +50,7 @@ def build_model(n_filters = 32, dropout = 0.0, batchnorm = True):
     
     x9 = Conv3DTranspose(n_filters*1, kernel_size=3, strides=(2,2,2), padding='same')(x)
     x = concatenate([x9, x1])
-    _,x = conv3d_block(x, n_filters*1, kernel_size=3, strides=1)
+    _,x = conv3d_block(x, n_filters*1, kernel_size=3, strides=1, batchnorm=False)
     ## Output is then put in to a shape to match the original data
     output = keras.layers.Conv3DTranspose(3,1,padding="same",name="output")(x)
 
@@ -94,7 +94,7 @@ def build_model1(n_filters = 32, n_cubes=3, dropout = 0.0, batchnorm = True):
     
     x9 = Conv3DTranspose(n_filters*1, kernel_size=3, strides=(2,2,2), padding='same')(x)
     x = concatenate([x9, x1])
-    _,x = conv3d_block(x, n_filters*1, kernel_size=3, strides=1)
+    _,x = conv3d_block(x, n_filters*1, kernel_size=3, strides=1, batchnorm=False)
     ## Output is then put in to a shape to match the original data
     output = keras.layers.Conv3DTranspose(n_cubes,1,padding="same",name="output")(x)
 
