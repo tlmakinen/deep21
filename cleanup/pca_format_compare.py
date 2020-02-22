@@ -8,6 +8,8 @@ import healpy as hp
 from sklearn.decomposition import PCA
 from sklearn.preprocessing import StandardScaler
 
+import os
+
 def gen_rearr(nside):
 # recursive funtion for finding the right 
 # ordering for the nested pixels 
@@ -28,8 +30,9 @@ if __name__ == '__main__':
     (NU_L,NU_H) = (1,30)
     DO_NU_AVG = False
     SPLIT_FILES = True
-    NU_AVG = 30   # EDIT
-    assert(((NU_H-NU_L + 1)%NU_AVG) ==0)
+    NU_AVG = 64   # EDIT
+    ADD_NOISE = True
+    #assert(((NU_H-NU_L + 1)%NU_AVG) ==0)
     MAP_NSIDE = 256
     WINDOW_NSIDE = 4
     NUM_SIMS = 100
@@ -50,7 +53,10 @@ if __name__ == '__main__':
     rearr = gen_rearr(int(np.log2(MAP_NSIDE/WINDOW_NSIDE)))
     nwinds = hp.nside2npix(WINDOW_NSIDE)
     # "global" string with name to disk directory
-    dirstr = "/tigress/tmakinen/ska_sims"
+    dirstr = "/mnt/home/tmakinen/ceph/ska_sims"
+    output_base = "/mnt/home/tmakinen/ceph/ska_sims/"
+
+
     # initialize the PCA algorithm
     pca = PCA()
 
@@ -65,6 +71,12 @@ if __name__ == '__main__':
             #fgd = np.array([np.mean(i,axis=0) for i in np.split(fgd,NU_AVG)]).T
             #cosmo = np.array([np.mean(i,axis=0) for i in np.split(cosmo,NU_AVG)]).T
             # create the observed signal as a sum of the forground and cosmological signal
+
+            ## ADD NOISE to cosmo shape: (?, NNU)
+            if ADD_NOISE:
+                mean_nu = [np.mean(nu) for nu in cosmo.T]  # variance of noise is derived from mean at each frequency band
+                cosmo = np.array([cosmo.T[i] + np.random.normal(loc=0, scale=0.1*mean_nu[i], size=cosmo.T[i].shape) for i in range(len(cosmo.T))]).T
+
             obs = fgd + cosmo
 
             pca.fit(obs)
@@ -97,8 +109,24 @@ if __name__ == '__main__':
 
         np.save("%s/pca_%dcomp_reduced_first_nnu%d_nsim%d"%(dirstr,N_COMP_MASK,N_NU,NUM_SIMS),x_out)
 
-        if SPLIT_FILES:
-            to_save = np.array_split(to_save, len(to_save) / 3)
-            for k in range(len(to_save)):
-                np.save(output_str + 'pca_%03d'%(k), to_save[k].T)
 
+
+        if SPLIT_FILES:
+            out_type = ['%d_test_data_noise/'%(N_COMP_MASK), "%d_train_data_noise/"%(N_COMP_MASK), "%d_val_data_noise/"%(N_COMP_MASK)]
+            output_str =  [output_base + o for o in out_type]
+            # split into train, test, and validation sets
+            test_data = x_out[-2*192:]
+            x_out = x_out[:-2*192]
+            train_data = x_out[:78*192]
+            val_data = x_out[-20*192:]
+            arr_list = [test_data, train_data, val_data]
+            
+            for j in range(len(output_str)):
+                
+                # make output dirs if not already
+                if not os.path.exists(output_str[j]): 
+                    os.mkdir(output_str[j])
+
+                split_arr = np.array_split(arr_list[j], len(arr_list[j]) / 3)
+                for k in range(len(split_arr)):
+                    np.save(output_str[j] + 'pca_%03d'%(k), split_arr[k].T)

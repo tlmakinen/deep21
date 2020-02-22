@@ -28,6 +28,7 @@ if __name__ == '__main__':
 	# "GLOBAL" parameters
 	(NU_L,NU_H) = (1,30)
 	DO_NU_AVG = False
+	ADD_NOISE = True
 	SPLIT_FILES = True
 	NU_AVG = 1   # EDIT
 	assert(((NU_H-NU_L + 1)%NU_AVG) ==0)
@@ -54,7 +55,7 @@ if __name__ == '__main__':
 	dirstr = "/mnt/home/tmakinen/ceph/ska_sims"
 
 	output_base = "/mnt/home/tmakinen/ceph/ska_sims/"
-	out_type = ['test_data/', "train_data/", "val_data/"]
+	out_type = ['test_data_noise/', "train_data_noise/", "val_data_noise/"]
 
 	if SPLIT_FILES:
 		output_str =  [output_base + o for o in out_type]
@@ -71,6 +72,12 @@ if __name__ == '__main__':
 		#fgd = np.array([np.mean(i,axis=0) for i in np.split(fgd,NU_AVG)]).T
 		#cosmo = np.array([np.mean(i,axis=0) for i in np.split(cosmo,NU_AVG)]).T
 		# create the observed signal as a sum of the forground and cosmological signal
+
+		## ADD NOISE to cosmo shape: (?, NNU)
+		if ADD_NOISE:
+			mean_nu = [np.mean(nu) for nu in cosmo.T]  # variance of noise is derived from mean at each frequency band
+			cosmo = np.array([cosmo.T[i] + np.random.normal(loc=0, scale=0.1*mean_nu[i], size=cosmo.T[i].shape) for i in range(len(cosmo.T))]).T
+
 		obs = fgd + cosmo
 
 		pca.fit(obs)
@@ -101,7 +108,7 @@ if __name__ == '__main__':
 			ind = (SNUM-1)*nwinds + PIX_SELEC
 			x_out[ind] = to_rearr
 
-	np.save("%s/pca_%dcomp_reduced_mid_nnu%d_nsim%d"%(dirstr,N_COMP_MASK,N_NU,NUM_SIMS),x_out)
+	np.save("%s/pca_%dcomp_reduced_noise_nnu%d_nsim%d"%(dirstr,N_COMP_MASK,N_NU,NUM_SIMS),x_out)
 
 
 	if SPLIT_FILES:

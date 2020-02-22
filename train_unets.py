@@ -15,7 +15,7 @@ from sklearn.externals.joblib import dump, load
 # for parallelizing slurm jobs
 import os, sys
 # import relevant unet model
-from unet import unet_models as un
+from unet import unet_2d as un
 #from unet import data_generators.EpochDataGenerator as EpochDataGenerator
 
 def get_available_gpus():
@@ -25,13 +25,13 @@ def get_available_gpus():
 
 if __name__ == '__main__':
 
-	models = [un.unet_baseline, un.unet_3Layer3conv, un.unet_3Layer2conv, un.unet_2Layer3conv, un.unet_5layer2conv]
-	out_dirs = ['unet_4layer2conv/', 'unet_3layer3conv/', 'unet_3layer2conv/', 'unet_2layer3conv/', 'unet_5layer2conv/']
+	models = [un.unet_conv4(n_filters=64, n_channels=64), un.unet_conv3(n_filters=64, n_channels=64)]
+	out_dirs = ['unet_4layer_vanilla/', 'unet_3layer_vanilla/']
 
 
 	# build model for this particular job
-	model = models[sys.argv[1]]
-	out_dir = out_dirs[sys.argv[1]]
+	model = models[int(sys.argv[1])]
+	out_dir = out_dirs[int(sys.argv[1])]
 	#model = keras.models.load_model('models_network1/model_full_1')
 
 	N_GPU = 2
@@ -52,12 +52,16 @@ if __name__ == '__main__':
 
 	print('-'*10, 'now training unet, output writing to ', out_dir, '-'*10)
 
-	# load train / test data
-	x_train = np.load('/mnt/home/tmakinen/ceph/ska_sims/pca3_nnu30_train.npy')
-	y_train = np.load("/mnt/home/tmakinen/ceph/ska_sims/cosmo_nnu30_train.npy")
+	# load train / val data (cut out test set)
+	x = np.load('/mnt/home/tmakinen/ceph/ska_sims/pca_3comp_reduced_mid_nnu64_nsim100.npy')[:-2*192]
+	y = np.load('/mnt/home/tmakinen/ceph/ska_sims/cosmo_nnu064_100sim.npy')[:-2*192]
 
-	x_val = np.load('/mnt/home/tmakinen/ceph/ska_sims/pca3_nnu30_val.npy')
-	y_val = np.load("/mnt/home/tmakinen/ceph/ska_sims/cosmo_nnu30_val.npy")
+
+	x_train = x[:78*192]
+	x_val = x[-20*192:]
+
+	y_train = y[:78*192]
+	y_val = y[-20*192:]
 
 	# train the model
 	N_EPOCHS = int(sys.argv[2])
@@ -76,9 +80,13 @@ if __name__ == '__main__':
 	#model_fname = sys.argv[3]
 	#history_fname = sys.argv[4]	
 
-	# save model
+	# save model (will be multi-gpu model)
 	fname = out_dir + 'model.h5'	
 	model.save(fname)
+
+	# save model weights
+	fname = out_dir + 'weights.h5'
+	model.save_weights(fname)
 
 	# make prediction and save y_pred
 	fname = out_dir + 'y_pred'

@@ -74,9 +74,15 @@ if __name__ == '__main__':
 	# make outdirectories
 	model_fname = 'model.h5'
 	history_fname = 'history'
+	weights_fname = "weights.h5"
+
 
 	outfile = "./unet3D_results/" + model_fname
 	model.save(outfile)
+
+	# save weights
+	outfile = "./unet3D_results/" + weights_fname
+	model.save_weights(outfile)
 
 	# pickle the training history object
 	outfile = "./unet3D_results/" + history_fname	
