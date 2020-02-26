@@ -36,7 +36,7 @@ if __name__ == '__main__':
 	out_dir = out_dirs[int(sys.argv[1]) - 1]
 
 	# build model
-	model = unet_3d.build_unet3d()
+	# model = unet_3d.build_unet3d()
 
 	N_GPU = 2
 	N_GPU = len(get_available_gpus())
@@ -57,7 +57,7 @@ if __name__ == '__main__':
     		os.mkdir(out_dir)
 
 	## train the model
-	N_EPOCHS = int(sys.argv[1])
+	N_EPOCHS = int(sys.argv[2])
 	N_BATCH = int(768*N_GPU / 2 / N_CUBES)          # every data file has 3 cubes in it => want GD every 1/2 sky => batchsize = 768 / 3 /2
 
 
