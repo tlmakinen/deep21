@@ -21,7 +21,7 @@ def conv2d_block(input_tensor, n_filters, kernel_size = 3, batchnorm = True, str
     return x1,x
 
 
-def unet_conv4(n_filters = 64, n_channels = 30, dropout=0.0):
+def unet_4conv(n_filters = 32, n_channels = 32, dropout=0.0):
     '''
     Baseline unet model for inputs of shape (64,64,n_nu)
     '''
@@ -39,19 +39,19 @@ def unet_conv4(n_filters = 64, n_channels = 30, dropout=0.0):
     _,x = conv2d_block(x, n_filters*16, batchnorm=True, strides=1)
     
     # expansive path    
-    x6 = Conv2DTranspose(n_filters*8, kernel_size=3, strides=2, padding='same')(x)    
+    x6 = Conv2DTranspose(n_filters*8, kernel_size=3, strides=2, padding='same', activation=tf.nn.relu)(x)    
     x = concatenate([x6, x4])
     _,x = conv2d_block(x, n_filters*8, kernel_size=3, strides=1)
     
-    x7 = Conv2DTranspose(n_filters*4, kernel_size=3, strides=2, padding='same')(x)    
+    x7 = Conv2DTranspose(n_filters*4, kernel_size=3, strides=2, padding='same', activation=tf.nn.relu)(x)    
     x = concatenate([x7, x3])
     _,x = conv2d_block(x, n_filters*4, kernel_size=3, strides=1)
     
-    x8 = Conv2DTranspose(n_filters*2, kernel_size=3, strides=(2,2), padding='same')(x)    
+    x8 = Conv2DTranspose(n_filters*2, kernel_size=3, strides=(2,2), padding='same', activation=tf.nn.relu)(x)    
     x = concatenate([x8,x2])
     _,x = conv2d_block(x, n_filters*2, kernel_size=3, strides=1)
     
-    x9 = Conv2DTranspose(n_filters*1, kernel_size=3, strides=(2,2), padding='same')(x)
+    x9 = Conv2DTranspose(n_filters*1, kernel_size=3, strides=(2,2), padding='same', activation=tf.nn.relu)(x)
     x = concatenate([x9, x1])
     _,x = conv2d_block(x, n_filters*1, kernel_size=3, strides=1, batchnorm = False)
     ## Output is then put in to a shape to match the original data
@@ -61,7 +61,7 @@ def unet_conv4(n_filters = 64, n_channels = 30, dropout=0.0):
     model = keras.models.Model(inputs=inputs,outputs=output)
     return model
 
-def unet_conv3(n_filters = 64, n_channels=30, dropout=0.0):
+def unet_3conv(n_filters = 64, n_channels=30, dropout=0.0):
 
     ## Start with inputs
     inputs = keras.layers.Input(shape=(n_filters, n_filters,n_channels),name="image_input")
@@ -72,15 +72,15 @@ def unet_conv3(n_filters = 64, n_channels=30, dropout=0.0):
 
     x3,x = conv2d_block(x, n_filters*4, batchnorm=True, strides=2)
     
-    x7 = Conv2DTranspose(n_filters*4, kernel_size=3, strides=2, padding='same')(x)    
+    x7 = Conv2DTranspose(n_filters*4, kernel_size=3, strides=2, padding='same', activation=tf.nn.relu)(x)    
     x = concatenate([x7, x3])
     _,x = conv2d_block(x, n_filters*4, kernel_size=3, strides=1)
     
-    x8 = Conv2DTranspose(n_filters*2, kernel_size=3, strides=(2,2), padding='same')(x)    
+    x8 = Conv2DTranspose(n_filters*2, kernel_size=3, strides=(2,2), padding='same', activation=tf.nn.relu)(x)    
     x = concatenate([x8,x2])
     _,x = conv2d_block(x, n_filters*2, kernel_size=3, strides=1)
     
-    x9 = Conv2DTranspose(n_filters*1, kernel_size=3, strides=(2,2), padding='same')(x)
+    x9 = Conv2DTranspose(n_filters*1, kernel_size=3, strides=(2,2), padding='same', activation=tf.nn.relu)(x)
     x = concatenate([x9, x1])
     _,x = conv2d_block(x, n_filters*1, kernel_size=3, strides=1, batchnorm = False)
     ## Output is then put in to a shape to match the original data

@@ -25,9 +25,9 @@ def conv3d_block(input_tensor, n_filters, kernel_size = 3, batchnorm = True, str
     
     return x1,x
 
-def build_model(n_filters = 32, dropout = 0.0, batchnorm = True):
+def build_unet3d(n_filters = 32, n_cubes=3, dropout = 0.0, batchnorm = True):
     ## Start with inputs
-    inputs = keras.layers.Input(shape=(n_filters, n_filters, n_filters,3),name="image_input")
+    inputs = keras.layers.Input(shape=(n_filters, n_filters, n_filters, n_cubes),name="image_input")
     ## First Convolutional layer made up of two convolutions, the second one down-samples
     x1,x = conv3d_block(inputs, n_filters*1, batchnorm = True)    
     x2,x = conv3d_block(x, n_filters*2, batchnorm=True)    
@@ -36,23 +36,23 @@ def build_model(n_filters = 32, dropout = 0.0, batchnorm = True):
     _,x = conv3d_block(x, n_filters*16, batchnorm=True, strides=1)
     
     # expansive path    
-    x6 = Conv3DTranspose(n_filters*8, kernel_size=3, strides=(2,2,2), padding='same')(x)    
+    x6 = Conv3DTranspose(n_filters*8, kernel_size=3, strides=(2,2,2), padding='same', activation=tf.nn.relu)(x)    
     x = concatenate([x6, x4])
     _,x = conv3d_block(x, n_filters*8, kernel_size=3, strides=1)
     
-    x7 = Conv3DTranspose(n_filters*4, kernel_size=3, strides=(2,2,2), padding='same')(x)    
+    x7 = Conv3DTranspose(n_filters*4, kernel_size=3, strides=(2,2,2), padding='same', activation=tf.nn.relu)(x)    
     x = concatenate([x7, x3])
     _,x = conv3d_block(x, n_filters*4, kernel_size=3, strides=1)
     
-    x8 = Conv3DTranspose(n_filters*2, kernel_size=3, strides=(2,2,2), padding='same')(x)    
+    x8 = Conv3DTranspose(n_filters*2, kernel_size=3, strides=(2,2,2), padding='same', activation=tf.nn.relu)(x)    
     x = concatenate([x8,x2])
     _,x = conv3d_block(x, n_filters*2, kernel_size=3, strides=1)
     
-    x9 = Conv3DTranspose(n_filters*1, kernel_size=3, strides=(2,2,2), padding='same')(x)
+    x9 = Conv3DTranspose(n_filters*1, kernel_size=3, strides=(2,2,2), padding='same', activation=tf.nn.relu)(x)
     x = concatenate([x9, x1])
     _,x = conv3d_block(x, n_filters*1, kernel_size=3, strides=1, batchnorm=False)
     ## Output is then put in to a shape to match the original data
-    output = keras.layers.Conv3DTranspose(3,1,padding="same",name="output")(x)
+    output = keras.layers.Conv3DTranspose(n_cubes,1,padding="same",name="output")(x)
 
     ## Compile the model
     model = keras.models.Model(inputs=inputs,outputs=output)
@@ -60,8 +60,7 @@ def build_model(n_filters = 32, dropout = 0.0, batchnorm = True):
 
 
 
-
-def build_model1(n_filters = 32, n_cubes=3, dropout = 0.0, batchnorm = True):
+def build_unet3d_maxpool(n_filters = 32, n_cubes=3, dropout = 0.0, batchnorm = True):
     ## Start with inputs
     inputs = keras.layers.Input(shape=(n_filters, n_filters, n_filters,n_cubes),name="image_input")
     # contractive path
@@ -80,19 +79,46 @@ def build_model1(n_filters = 32, n_cubes=3, dropout = 0.0, batchnorm = True):
     _,x = conv3d_block(x, n_filters*16, batchnorm=True, strides=1)
     
     # expansive path    
-    x6 = Conv3DTranspose(n_filters*8, kernel_size=3, strides=(2,2,2), padding='same')(x)    
+    x6 = Conv3DTranspose(n_filters*8, kernel_size=3, strides=(2,2,2), padding='same', activation=tf.nn.relu)(x)    
     x = concatenate([x6, x4])
     _,x = conv3d_block(x, n_filters*8, kernel_size=3, strides=1)
     
-    x7 = Conv3DTranspose(n_filters*4, kernel_size=3, strides=(2,2,2), padding='same')(x)    
+    x7 = Conv3DTranspose(n_filters*4, kernel_size=3, strides=(2,2,2), padding='same', activation=tf.nn.relu)(x)    
     x = concatenate([x7, x3])
     _,x = conv3d_block(x, n_filters*4, kernel_size=3, strides=1)
     
-    x8 = Conv3DTranspose(n_filters*2, kernel_size=3, strides=(2,2,2), padding='same')(x)    
+    x8 = Conv3DTranspose(n_filters*2, kernel_size=3, strides=(2,2,2), padding='same', activation=tf.nn.relu)(x)    
     x = concatenate([x8,x2])
     _,x = conv3d_block(x, n_filters*2, kernel_size=3, strides=1)
     
-    x9 = Conv3DTranspose(n_filters*1, kernel_size=3, strides=(2,2,2), padding='same')(x)
+    x9 = Conv3DTranspose(n_filters*1, kernel_size=3, strides=(2,2,2), padding='same', activation=tf.nn.relu)(x)
+    x = concatenate([x9, x1])
+    _,x = conv3d_block(x, n_filters*1, kernel_size=3, strides=1, batchnorm=False)
+    ## Output is then put in to a shape to match the original data
+    output = keras.layers.Conv3DTranspose(n_cubes,1,padding="same",name="output")(x)
+
+    ## Compile the model
+    model = keras.models.Model(inputs=inputs,outputs=output)
+    return model
+
+def build_unet3d_3conv(n_filters = 32, n_cubes=3, dropout = 0.0, batchnorm = True):
+    ## Start with inputs
+    inputs = keras.layers.Input(shape=(n_filters, n_filters, n_filters,n_cubes),name="image_input")
+    ## First Convolutional layer made up of two convolutions, the second one down-samples
+    x1,x = conv3d_block(inputs, n_filters*1, batchnorm = True)    
+    x2,x = conv3d_block(x, n_filters*2, batchnorm=True)    
+    x3,x = conv3d_block(x, n_filters*4, batchnorm=True)   
+
+#     # expansive path    
+    x7 = Conv3DTranspose(n_filters*4, kernel_size=3, strides=(2,2,2), padding='same', activation=tf.nn.relu)(x)    
+    x = concatenate([x7, x3])
+    _,x = conv3d_block(x, n_filters*4, kernel_size=3, strides=1)
+    
+    x8 = Conv3DTranspose(n_filters*2, kernel_size=3, strides=(2,2,2), padding='same', activation=tf.nn.relu)(x)    
+    x = concatenate([x8,x2])
+    _,x = conv3d_block(x, n_filters*2, kernel_size=3, strides=1)
+    
+    x9 = Conv3DTranspose(n_filters*1, kernel_size=3, strides=(2,2,2), padding='same', activation=tf.nn.relu)(x)
     x = concatenate([x9, x1])
     _,x = conv3d_block(x, n_filters*1, kernel_size=3, strides=1, batchnorm=False)
     ## Output is then put in to a shape to match the original data
