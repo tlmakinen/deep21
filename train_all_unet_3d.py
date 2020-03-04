@@ -11,6 +11,9 @@ import time
 from tensorflow.python.client import device_lib
 import pickle
 from sklearn.externals.joblib import dump, load
+import h5py
+import healpy as hp
+from tensorflow.keras.callbacks import ModelCheckpoint, LearningRateScheduler, ReduceLROnPlateau
 
 # for parallelizing slurm jobs
 import os, sys
@@ -26,8 +29,8 @@ def get_available_gpus():
 if __name__ == '__main__':
 
 	# HOW IS THE DATA STACKED ?
-	N_CUBES = 3
-	models = [unet_3d.build_unet3d(n_filters=32, n_cubes=N_CUBES), unet_3d.build_unet3d_3conv(n_filters=32, n_cubes=N_CUBES)]
+	N_CUBES = 1
+	models = [unet_3d.build_unet3d(n_filters=16, n_cubes=N_CUBES, x_dim=32), unet_3d.build_unet3d_3conv(n_filters=16, n_cubes=N_CUBES, x_dim=32)]
 	out_dirs = ['unet3d_4layer_vanilla/', 'unet3d_3layer_vanilla/']
 
 
@@ -48,8 +51,9 @@ if __name__ == '__main__':
 			print("Training using multiple GPUs..")
 	except:
 			print("Training using single GPU or CPU..")
+
 	# compile model with specified loss and optimizer
-	model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999, amsgrad=True), 
+	model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.0001, beta_1=0.9, beta_2=0.999, amsgrad=True), 
 								loss="mse",metrics=["mse"])
 
 	# create output directory
@@ -65,23 +69,54 @@ if __name__ == '__main__':
 	train_path = '/mnt/home/tmakinen/ceph/data_ska/'
 	val_path = '/mnt/home/tmakinen/ceph/data_ska/'
 
-	train_generator = tomo_dataLoader2(train_path, method='train', batch_size=N_BATCH, data_fraction=1.,
-									x_dim=(32,32,32,N_CUBES), y_dim = (32,32,32,N_CUBES),)
-	val_generator = tomo_dataLoader2(val_path, method='val', batch_size=N_BATCH, data_fraction=1.,
-											x_dim=(32,32,32,N_CUBES), y_dim=(32,32,32,N_CUBES))
+	# train_generator = tomo_dataLoader2(train_path, method='train', batch_size=N_BATCH, data_fraction=1., n_cubes=N_CUBES,
+	# 								x_dim=(32,32,32,N_CUBES), y_dim = (32,32,32,N_CUBES),)
+	# val_generator = tomo_dataLoader2(val_path, method='val', batch_size=N_BATCH, data_fraction=1., n_cubes=N_CUBES,
+	# 										x_dim=(32,32,32,N_CUBES), y_dim=(32,32,32,N_CUBES))
+
+	# pull in npy files for the time being
+	wins_per_sim = 768  # for (32,32,32) input data
+	x = np.load('/mnt/home/tmakinen/ceph/data_ska/pca_3_nnu32_nsim100.npy')[:-2*wins_per_sim]
+	y = np.load('/mnt/home/tmakinen/ceph/data_ska/cosmo_nnu032_100sim.npy')[:-2*wins_per_sim]
+
+	# out of 100 total sims
+	x_train = x[:78*wins_per_sim]
+	x_val = x[-20*wins_per_sim:]
+	y_train = y[:78*wins_per_sim]
+	y_val = y[-20*wins_per_sim:]
+
+	# expand dims to 4D tensor
+	x_train = np.expand_dims(x_train, axis=-1)
+	y_train = np.expand_dims(y_train, axis=-1)
+	x_val = np.expand_dims(x_val, axis=-1)
+	y_val = np.expand_dims(y_val, axis=-1)
+
+
+	# train the model
+	N_EPOCHS = int(sys.argv[2])
+	N_BATCH =  768*N_GPU              # big batch size for multiple gpus  
 
 
 	t1 = time.time()
 
+	# DEFINE CALLBACKS
+
 	# create checkpoint method to save model in the event of walltime timeout
 	## LATER: modify to compute 2D power spectrum
 	best_fname = out_dir + 'best_model.h5'
-	checkpoint = ModelCheckpoint(best_fname, monitor='loss', verbose=0,
-    										save_best_only=True, mode='auto', save_freq=5)
+	checkpoint = ModelCheckpoint(best_fname, monitor='mse', verbose=0,
+    										save_best_only=True, mode='auto', save_freq=15)
 
+
+	reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.6,
+                              				patience=10, min_lr=0.0001, verbose=1)
 	# train model
-	history = model.fit_generator(train_generator,epochs=N_EPOCHS,
-										validation_data=val_generator, workers=4, use_multiprocessing=False, callbacks=[checkpoint])
+	# history = model.fit_generator(train_generator,epochs=N_EPOCHS,
+	# 									validation_data=val_generator, workers=4, use_multiprocessing=False)
+	# 									#, callbacks=[checkpoint])
+
+	history = model.fit(x_train,y_train,batch_size=48,epochs=N_EPOCHS,
+							validation_data=(x_val, y_val), workers=2)#, callbacks=[checkpoint])
 
 	t2 = time.time()
 
@@ -106,3 +141,9 @@ if __name__ == '__main__':
 	with open(outfile, 'wb') as file_pi:
 		pickle.dump(history.history, file_pi)
 	file_pi.close()
+
+	# compute y_pred using the best model weights
+	outfile = out_dir + 'y_pred'
+	#model.load_weights(best_fname)
+	np.save(outfile, model.predict(x_val))
+

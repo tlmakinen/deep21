@@ -13,6 +13,10 @@ import pickle
 from sklearn.preprocessing import StandardScaler
 from sklearn.externals.joblib import dump, load
 
+import h5py
+import healpy as hp
+from tensorflow.keras.callbacks import ModelCheckpoint, LearningRateScheduler, ReduceLROnPlateau
+
 # for parallelizing slurm jobs
 import os, sys
 # import relevant unet model
@@ -26,7 +30,8 @@ def get_available_gpus():
 
 if __name__ == '__main__':
 
-	models = [un.unet_4conv(n_filters=32, n_channels=32), un.unet_3conv(n_filters=32, n_channels=32)]
+	models = [un.unet_4conv(n_filters=16, n_channels=32, x_dim=32), 
+					un.unet_3conv(n_filters=16, n_channels=32, x_dim=32)]
 	out_dirs = ['unet2d_4layer_vanilla/', 'unet2d_3layer_vanilla/']
 
 
@@ -54,8 +59,8 @@ if __name__ == '__main__':
 	print('-'*10, 'now training unet, output writing to ', out_dir, '-'*10)
 
 	# load train / val data (cut out test set)
-	wins_per_sim = 1536  # for (32,32,32) input data
-	x = np.load('/mnt/home/tmakinen/ceph/data_ska/pca_3comp_nnu32_nsim100.npy')[:-2*wins_per_sim]
+	wins_per_sim = 768  # for (32,32,32) input data
+	x = np.load('/mnt/home/tmakinen/ceph/data_ska/pca_3_nnu32_nsim100.npy')[:-2*wins_per_sim]
 	y = np.load('/mnt/home/tmakinen/ceph/data_ska/cosmo_nnu032_100sim.npy')[:-2*wins_per_sim]
 
 	# out of 100 total sims
@@ -71,15 +76,19 @@ if __name__ == '__main__':
 	N_BATCH =  768*N_GPU              # big batch size for multiple gpus  
 	t1 = time.time()
 
+	# DEFINE CALLBACKS
 
 	# create checkpoint method to save model in the event of walltime timeout
 	## LATER: modify to compute 2D power spectrum
 	best_fname = out_dir + 'best_model.h5'
-	checkpoint = ModelCheckpoint(best_fname, monitor='loss', verbose=0,
-    										save_best_only=True, mode='auto', save_freq=5)
+	checkpoint = ModelCheckpoint(best_fname, monitor='mse', verbose=0,
+    										save_best_only=True, mode='auto', save_freq=15)
+
+	reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.6,
+                              patience=10, min_lr=0.0001, verbose=1)
 	# train model
 	history = model.fit(x_train,y_train,batch_size=N_BATCH,epochs=N_EPOCHS,
-									validation_data=(x_val, y_val), workers=2, verbose=1, callbacks=[checkpoint])
+									validation_data=(x_val, y_val), workers=2, verbose=1, callbacks=[reduce_lr, checkpoint])
 
 	t2 = time.time()
 

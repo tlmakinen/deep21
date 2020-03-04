@@ -13,13 +13,13 @@ class tomo_dataLoader2(keras.utils.Sequence):
     'Generates subset of simulation data per epoch for Keras from h5 file'
 
     def __init__(self, path, method='train', batch_size=384, x_dim=(32,32,32,1), y_dim=(32,32,32,1), n_channels=1,
-                         n_skip=1, data_fraction=1., shuffle=False):
+                         n_skip=1, data_fraction=1., n_cubes=1, shuffle=False):
         'Initialization'
         self.x_dim = x_dim
         self.y_dim = y_dim
         self.path = path               # path to h5 files
-        self.x_fname = path + 'pca3.h5'
-        self.y_fname = path + 'cosmo3.h5'
+        self.x_fname = path + 'pca%s.h5'%(n_cubes)
+        self.y_fname = path + 'cosmo%s.h5'%(n_cubes)
         self.method = method + '_data'       # train, test, or validation
         self.data_fraction = data_fraction   # percentage of data you want to train on
         # initialize datasets
