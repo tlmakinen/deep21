@@ -1,124 +1,116 @@
+## 2D UNet for 21cm Observation De-Noising
+## by TLM
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.layers import Conv2D, BatchNormalization, Conv2DTranspose, concatenate, MaxPool2D, Activation
 
-def conv2d_double_block(input_tensor, n_filters, kernel_size = 3, batchnorm = True, strides=1):
-    """Function to add 2 convolutional layers with the parameters passed to it"""
-    # first layer
-    x1 = Conv2D(filters = n_filters, kernel_size = (kernel_size, kernel_size),\
-              padding = 'same')(input_tensor)
-    if batchnorm:
-        x = BatchNormalization()(x1)
-    x = Activation('relu')(x1)
+class unet2D(): 
+    """
+    General class for building fully connected 2D convolutional UNet
+    Parameters: n_filters: starting filter size
+                conv_width: how many convolutions to be performed in residual block
+                network_depth: how many layers deep your network goes 
+                    (limit: growth_factor^network_depth =< x_dim)
+                growth_factor: 2 (how to divide feature size)
+                n_channels: how many image (or frequency) channels to put in
+                x_dim: image input size (x_dim x x_dim)
+                batchnorm: bool (usually True) to reduce internal covariance shift
+                momentum: batchnorm param, set to 0.1 for outputs, (default=0.9)
+                epsilon: batchnorm param (default = 0.001) 
+                activation: activation function for outputs (default = 'relu')
+                maxpool: whether or not to use MaxPool feature to downsamplee (default = True)
+    """
     
-    # second layer downsamples
-    x = Conv2D(filters = n_filters, kernel_size = (kernel_size, kernel_size),\
-              padding = 'same', strides=strides)(input_tensor)
-    if batchnorm:
-        x = BatchNormalization()(x)
-    x = Activation('relu')(x)
+    def __init__(self,n_filters = 16, conv_width=1, 
+                 network_depth = 4,
+                 n_channels=32, x_dim=32, dropout = 0.0, 
+                 growth_factor=2, batchnorm = True, 
+                 momentum=0.9, epsilon=0.001,
+                 activation='relu', maxpool=False
+                 ):
         
-    return x
-
-def conv2d_single_block(input_tensor, n_filters, kernel_size = 3, batchnorm = True, strides=2, momentum=0.99):
-    """Function to add 1 downsampling convolutional layer with the parameters passed to it"""
-    # second layer downsamples
-    x = Conv2D(filters = n_filters, kernel_size = (kernel_size, kernel_size),\
-              padding = 'same', strides=strides)(input_tensor)
-    if batchnorm:
-        x = BatchNormalization(momentum=momentum)(x)
-    x = Activation('relu')(x)
+        self.n_filters = n_filters
+        self.n_channels = n_channels
+        self.conv_width = conv_width
+        self.network_depth = network_depth
+        self.x_dim = x_dim
+        self.dropout = dropout
+        self.growth_factor = growth_factor
+        self.batchnorm = batchnorm
+        self.momentum = momentum
+        self.epsilon = epsilon
+        self.activation = activation
+        self.maxpool = maxpool        
         
-    return x
+        # define all layers
+        
+    def conv_block(self, input_tensor, n_filters, n_layers=1, strides=1, kernel_size=3, \
+                           momentum=0.9, maxpool=False, batchnorm=True, layer_num=None):
+        """Function to add n_blocks convolutional layers with the parameters passed to it"""
+        if layer_num is not None:
+            if strides > 1:
+                name = 'downsample_{}'.format(layer_num)
+        else:
+            name = None
+        
+        x = input_tensor    
+        
+        if maxpool:
+            x = MaxPool2D(pool_size=(strides,strides), padding='same')(x)
+            if batchnorm:
+                x = BatchNormalization(momentum=momentum)(x)   
+            x = Activation(self.activation)(x)   
+            
+        
+        else:
+            for _ in range(n_layers):        
+                x = Conv2D(filters = n_filters, kernel_size = (kernel_size, kernel_size),\
+                      padding = 'same', strides=strides, name=name)(x)
 
-
-def unet_4conv(n_filters = 16, n_channels = 32, x_dim=32, dropout=0.0):
-    '''
-    Baseline unet model for inputs of shape (x_dim,x_dim,n_channels)
-    '''
-
-    ## Start with inputs
-    inputs = keras.layers.Input(shape=(x_dim, x_dim, n_channels),name="image_input")
-    ## First Convolutional layer made up of two convolutions, the second one down-samples
-    x1 = conv2d_double_block(inputs, n_filters*1, batchnorm = True)
-    x = conv2d_single_block(x1, n_filters*1, batchnorm=True, strides=2)
+                if batchnorm:
+                    x = BatchNormalization(momentum=momentum)(x)   
+                x = Activation(self.activation)(x)    
+            return x           
+                     
     
-    
-    x2 = conv2d_double_block(x, n_filters*2, batchnorm=True)
-    x = conv2d_single_block(x2, n_filters*2, batchnorm=True, strides=2)
+    def build_model(self):
+        """
+        Function to build network with specified architecture parameters
+        """
+        network_depth = self.network_depth
+        n_filters = self.n_filters
+        growth_factor = self.growth_factor
+        momentum = self.momentum
 
-    x3 = conv2d_double_block(x, n_filters*4, batchnorm=True)
-    x = conv2d_single_block(x3, n_filters*4, batchnorm=True, strides=2)
-    
-    x4 = conv2d_double_block(x, n_filters*8, batchnorm=True)
-    x = conv2d_single_block(x4, n_filters*8, batchnorm=True, strides=2)
+        ## Start with inputs
+        inputs = keras.layers.Input(shape=(self.x_dim, self.x_dim, self.n_channels),name="image_input")
+        x = inputs
+        concat_down = []
+        for h in range(network_depth):
+            x = self.conv_block(x, n_filters, n_layers=self.conv_width,strides=1) 
+            concat_down.append(x)
+            x = self.conv_block(x, n_filters, n_layers=1, batchnorm=True, strides=2, 
+                                    maxpool=self.maxpool, layer_num=l+1)
+            n_filters *= growth_factor
+        
+        # reverse order of down layers
+        concat_down = concat_down[::-1]  
+        # middle
+        x = self.conv_block(x, n_filters, n_layers=self.conv_width, strides=1)
+        
+        # expansive path
+        n_filters //= growth_factor
+        for h in range(network_depth):
+            x = Conv2DTranspose(n_filters, kernel_size=3, strides=2, padding='same')(x)
+            x = BatchNormalization(momentum=momentum, epsilon=self.epsilon)(x)
+            x = Activation(self.activation)(x)
+            x = concatenate([x, concat_down[h]])
+            x = self.conv_block(x, n_filters, n_layers=self.conv_width, kernel_size=3, 
+                                        strides=1, momentum=self.momentum)   
+            n_filters //= growth_factor
+            
+        ## output matches input dims
+        output = Conv2DTranspose(self.n_channels,1,padding="same",name="output")(x)       
 
-    x5 = conv2d_double_block(x, n_filters*16, batchnorm=True, strides=1)
-    
-   
-    # expansive path    
-    x6 = Conv2DTranspose(n_filters*8, kernel_size=3, strides=2, padding='same')(x5)    
-    x = concatenate([x6, x4])
-    x = conv2d_single_block(x, n_filters*8, kernel_size=3, strides=1, momentum=0.99)
-    
-    x7 = Conv2DTranspose(n_filters*4, kernel_size=3, strides=2, padding='same')(x)    
-    x = concatenate([x7, x3])
-    x = conv2d_single_block(x, n_filters*4, kernel_size=3, strides=1, momentum=0.99)
-    
-    x8 = Conv2DTranspose(n_filters*2, kernel_size=3, strides=2, padding='same')(x)    
-    x = concatenate([x8,x2])
-    x = conv2d_single_block(x, n_filters*2, kernel_size=3, strides=1, momentum=0.99)
-    
-    x9 = Conv2DTranspose(n_filters*1, kernel_size=3, strides=2, padding='same')(x)
-    x = concatenate([x9, x1])
-    x = conv2d_single_block(x, n_filters*1, kernel_size=3, strides=1, momentum=0.99)
-
-    ## Output is then put in to a shape to match the original data
-    output = keras.layers.Conv2DTranspose(n_channels,1,padding="same",name="output")(x)
-
-    ## Compile the model
-    model = keras.models.Model(inputs=inputs,outputs=output)
-    
-    ## Compile the model
-    model = keras.models.Model(inputs=inputs,outputs=output)
-    return model
-
-def unet_3conv(n_filters = 16, n_channels=32, x_dim = 32, dropout=0.0):
-    '''
-    shallower model for testing    
-    '''
-
-    ## Start with inputs
-    inputs = keras.layers.Input(shape=(x_dim, x_dim, n_channels),name="image_input")
-    ## First Convolutional layer made up of two convolutions, the second one down-samples
-    x1 = conv2d_double_block(inputs, n_filters*1, batchnorm = True)
-    x = conv2d_single_block(x1, n_filters*1, batchnorm=True, strides=2)
-
-
-    x2 = conv2d_double_block(x, n_filters*2, batchnorm=True)
-    x = conv2d_single_block(x2, n_filters*2, batchnorm=True, strides=2)
-
-    x3 = conv2d_double_block(x, n_filters*4, batchnorm=True)
-    x = conv2d_single_block(x3, n_filters*4, batchnorm=True, strides=2)
-
-    x4 = conv2d_double_block(x, n_filters*8, batchnorm=True)
-
-    # expansive path
-    x7 = Conv2DTranspose(n_filters*4, kernel_size=3, strides=2, padding='same')(x4)    
-    x = concatenate([x7, x3])
-    x = conv2d_single_block(x, n_filters*4, kernel_size=3, strides=1, momentum=0.99)
-
-    x8 = Conv2DTranspose(n_filters*2, kernel_size=3, strides=2, padding='same')(x)    
-    x = concatenate([x8,x2])
-    x = conv2d_single_block(x, n_filters*2, kernel_size=3, strides=1, momentum=0.99)
-
-    x9 = Conv2DTranspose(n_filters*1, kernel_size=3, strides=2, padding='same')(x)
-    x = concatenate([x9, x1])
-    x = conv2d_single_block(x, n_filters*1, kernel_size=3, strides=1, momentum=0.99)
-
-    ## Output is then put in to a shape to match the original data
-    output = keras.layers.Conv2DTranspose(n_channels,1,padding="same",name="output")(x)
-
-    ## Compile the model
-    model = keras.models.Model(inputs=inputs,outputs=output)
-    return model
+        model = keras.models.Model(inputs=inputs,outputs=output)
+        return model
