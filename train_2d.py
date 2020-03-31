@@ -18,7 +18,7 @@ import multiprocessing
 # for parallelizing slurm jobs
 import os, sys
 # import relevant unet model
-from unet import unet_3d
+from unet import unet_2d
 from data_utils import dataloaders
 
 def get_available_gpus():
@@ -44,14 +44,14 @@ params = {
     'act' : 'relu',
     'lr': 0.0001,
     'out_dir': 'trials/',
-    'nu_indx': np.arange(32)
+    'nu_indx': np.arange(32),
+    'shuffle_nu': False
     }
 
 def train_unet(params, out_dir):
     # initialize model
-    model = unet_3d.unet3D(n_filters=params['n_filters'], conv_width=params['conv_width'],
-                        network_depth=params['network_depth'], n_cubes_in=params['n_cubes_in'], 
-                                                                    n_cubes_out=params['n_cubes_out'])
+    model = unet_2d.unet2D(n_filters=params['n_filters'], conv_width=params['conv_width'],
+                        network_depth=params['network_depth'])
     # check available gpus
     N_GPU = len(get_available_gpus())
 
@@ -81,6 +81,9 @@ def train_unet(params, out_dir):
     if not os.path.exists(out_dir): 
         os.mkdir(out_dir)
 
+    nu_indx = params['nu_indx']
+    if params['shuffle_nu']:
+        np.random.shuffle(nu_indx)
 
     # load data 
     x_path = '/mnt/home/tmakinen/ceph/data_ska/'
@@ -88,15 +91,15 @@ def train_unet(params, out_dir):
     workers = multiprocessing.cpu_count() // 5
     train_start = 0
     train_stop = 80
-    train_generator = dataloaders.dataLoader3D(x_path, y_path, 
+    train_generator = dataloaders.dataLoader2D(x_path, y_path, 
                         batch_size=N_BATCH, start=train_start, 
-                        stop=train_stop, nu_indx=params['nu_indx'])
+                        stop=train_stop, nu_indx=nu_indx)
 
     val_start = 80
     val_stop = 90
-    val_generator = dataloaders.dataLoader3D(x_path, y_path, 
+    val_generator = dataloaders.dataLoader2D(x_path, y_path, 
                         batch_size=N_BATCH, start=val_start, 
-                        stop=val_stop, nu_indx=params['nu_indx'])
+                        stop=val_stop, nu_indx=nu_indx)
 
     t1 = time.time()
 
@@ -114,14 +117,15 @@ def train_unet(params, out_dir):
     N_EPOCHS = params['num_epochs']
     history = model.fit_generator(train_generator,
                                           epochs=N_EPOCHS,validation_data=val_generator, 
-                                          use_multiprocessing=False, workers=workers, callbacks=[checkpoint])
+                                          use_multiprocessing=False, workers=workers)#
+                                          #, callbacks=[checkpoint])
 
     # make validation prediction
     y_pred = model.predict(val_generator, workers=5, steps=np.ceil(768*10/N_BATCH))
     # pull out y_true
     y_true = val_generator.__gettruth__()
 
-    return history, model, y_pred, y_true
+    return history, model, y_pred, y_true, nu_indx
 
 if __name__ == '__main__':
 
@@ -139,7 +143,7 @@ if __name__ == '__main__':
 
     t1 = time.time()
 
-    history,model,y_pred,y_true = train_unet(params, out_dir)
+    history,model,y_pred,y_true,nu_indx = train_unet(params, out_dir)
 
     t2 = time.time()
 
@@ -171,4 +175,7 @@ if __name__ == '__main__':
 
     outfile = out_dir + 'y_true'
     np.save(outfile, y_true)
+
+    outfile = out_dir + 'nu_indx'
+    np.save(outfile, nu_indx)
 
