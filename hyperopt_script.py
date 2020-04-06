@@ -2,8 +2,11 @@
 import sys
 import numpy as np
 import pickle as pkl
+import tensorflow as tf
 import hyperopt
 from hyperopt import hp, fmin, tpe, Trials
+
+from unet3d_hyperopt import train_unet
 
 
 #Change the following code to your file
@@ -17,9 +20,8 @@ def run_trial(args):
     :args: A dictionary containing all hyperparameters
     :returns: Dict with status and loss from cross-validation
     """
+    loss = train_unet(args)
 
-    #TODO: Fill this in with a call to your file
-    ...
 
     return {
         'status': 'ok', # or 'fail' if nan loss
@@ -29,15 +31,9 @@ def run_trial(args):
 
 #TODO: Declare your hyperparameter priors here:
 space = {
-    'lr' : hp.lognormal('lr', -5.5, 1.5),
-    'p' : hp.uniform('p', 0.0, 0.9),
-    'hidden' : hp.qloguniform('hidden', np.log(10), np.log(1000+1), 1),
-    'latent' : hp.qloguniform('latent', np.log(5), np.log(1000), 1),
-    'batch_size' : hp.qloguniform('batch_size', np.log(256), np.log(3000), 1),
-    'in_length' : hp.quniform('in_length', 0, 4+1, 1),
-    'out_length' : hp.quniform('out_length', 0, 4+1, 1),
-    'act' : hp.choice('act', [nn.LeakyReLU]),
-    'epochs': hp.choice('epochs', [TOTAL_EPOCHS])
+    'conv_width' : hp.choice('conv_width', [1, 2]),
+    'batch_size' : hp.qloguniform('batch_size', np.log(24), np.log(768), 1),
+    'lr': hp.lognormal('lr', -5.5, 1.5),
 }
 
 ################################################################################

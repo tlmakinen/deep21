@@ -7,18 +7,18 @@ from tensorflow.keras.layers import Conv2D, BatchNormalization, Conv2DTranspose,
 class unet2D(): 
     """
     General class for building fully connected 2D convolutional UNet
-    Parameters: n_filters: starting filter size
-                conv_width: how many convolutions to be performed in residual block
-                network_depth: how many layers deep your network goes 
+    Parameters: `n_filters`: starting filter size
+                `conv_width`: how many convolutions to be performed in residual block
+                `network_depth`: how many layers deep your network goes 
                     (limit: growth_factor^network_depth =< x_dim)
-                growth_factor: 2 (how to divide feature size)
-                n_channels: how many image (or frequency) channels to put in
-                x_dim: image input size (x_dim x x_dim)
-                batchnorm: bool (usually True) to reduce internal covariance shift
-                momentum: batchnorm param, set to 0.1 for outputs, (default=0.9)
-                epsilon: batchnorm param (default = 0.001) 
-                activation: activation function for outputs (default = 'relu')
-                maxpool: whether or not to use MaxPool feature to downsamplee (default = True)
+                `growth_factor`: 2 (how to divide feature size)
+                `n_channels`: how many image (or frequency) channels to put in
+                `x_dim`: image input size (x_dim x x_dim)
+                `batchnorm`: bool (usually True) to reduce internal covariance shift
+                `momentum`: batchnorm param, set to 0.1 for outputs, (default=0.9)
+                `epsilon`: batchnorm param (default = 0.001) 
+                `activation`: activation function for outputs (default = 'relu')
+                `maxpool`: whether or not to use MaxPool feature to downsamplee (default = True)
     """
     
     def __init__(self,n_filters = 16, conv_width=1, 
@@ -90,7 +90,7 @@ class unet2D():
             x = self.conv_block(x, n_filters, n_layers=self.conv_width,strides=1) 
             concat_down.append(x)
             x = self.conv_block(x, n_filters, n_layers=1, batchnorm=True, strides=2, 
-                                    maxpool=self.maxpool, layer_num=l+1)
+                                    maxpool=self.maxpool, layer_num=h+1)
             n_filters *= growth_factor
         
         # reverse order of down layers

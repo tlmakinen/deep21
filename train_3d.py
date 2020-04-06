@@ -18,18 +18,24 @@ import multiprocessing
 # for parallelizing slurm jobs
 import os, sys
 # import relevant unet model
-from unet import unet_2d
+from unet import unet_3d
 from data_utils import dataloaders
 
 def get_available_gpus():
    local_device_protos = device_lib.list_local_devices()
    return [x.name for x in local_device_protos if x.device_type  == "GPU"]
 
-def build_compile(net, params):
+def build_compile(net, params, N_GPU):
+    if params['load_weights']:
+        model = keras.models.load_model(out_dir + 'model.h5')
+    else:
+        model = net.build_model()
+    if N_GPU > 1:
+        model = keras.utils.multi_gpu_model(model, gpus=N_GPU)
 
-    model = net.build_model()
-    model.compile(optimizer=keras.optimizers.Adam(learning_rate=params['lr'], beta_1=0.9, beta_2=0.999, amsgrad=True), 
-                                loss="mse",metrics=["mse"])
+ 
+    model.compile(optimizer=keras.optimizers.Adam(learning_rate=params['lr'], 
+                            beta_1=0.9, beta_2=0.999, amsgrad=True), loss="mse",metrics=["mse"])
     return model
 
 # DEFINE INPUT PARAMS
@@ -37,33 +43,35 @@ params = {
     'n_filters' : 16,
     'n_cubes_in': 1,
     'n_cubes_out': 1,
-    'conv_width' : int(sys.argv[1]),
-    'network_depth': 4,
+    'conv_width' : 1,
+    'network_depth': int(sys.argv[1]),
     'batch_size' : 48,
     'num_epochs' : 200,
     'act' : 'relu',
     'lr': 0.0001,
     'out_dir': 'trials/',
     'nu_indx': np.arange(32),
-    'shuffle_nu': False
+    'load_weights': False
     }
 
 def train_unet(params, out_dir):
     # initialize model
-    model = unet_2d.unet2D(n_filters=params['n_filters'], conv_width=params['conv_width'],
-                        network_depth=params['network_depth'])
+    model = unet_3d.unet3D(n_filters=params['n_filters'], conv_width=params['conv_width'],
+                        network_depth=params['network_depth'], n_cubes_in=params['n_cubes_in'], 
+                                                                    n_cubes_out=params['n_cubes_out'])
+    
     # check available gpus
     N_GPU = len(get_available_gpus())
 
     if N_GPU > 1:
-        strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy()
+        #strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy()
         NUM_WORKERS = N_GPU
 
         N_BATCH = params['batch_size'] * NUM_WORKERS
 
-        with strategy.scope():
+        #with strategy.scope():
         # Model building/compiling need to be within `strategy.scope()`.
-            model = build_compile(model, params)
+        model = build_compile(model, params, N_GPU)
 
         print("Training using multiple GPUs..")
 
@@ -71,7 +79,7 @@ def train_unet(params, out_dir):
         NUM_WORKERS = multiprocessing.cpu_count() // 5
         N_BATCH = params['batch_size']
 
-        model = build_compile(model, params)
+        model = build_compile(model, params, N_GPU)
         print("Training using single GPU..")
 
     print('-'*10, 'now training unet on ', N_GPU, ' GPUs, output writing to ', out_dir, '-'*10)
@@ -81,9 +89,6 @@ def train_unet(params, out_dir):
     if not os.path.exists(out_dir): 
         os.mkdir(out_dir)
 
-    nu_indx = params['nu_indx']
-    if params['shuffle_nu']:
-        np.random.shuffle(nu_indx)
 
     # load data 
     x_path = '/mnt/home/tmakinen/ceph/data_ska/'
@@ -91,15 +96,17 @@ def train_unet(params, out_dir):
     workers = multiprocessing.cpu_count() // 5
     train_start = 0
     train_stop = 50
-    train_generator = dataloaders.dataLoader2D_static(x_path, y_path, 
-                        batch_size=N_BATCH, start=train_start, 
-                        stop=train_stop, nu_indx=nu_indx)
+    train_generator = dataloaders.dataLoader3D_static(x_path, y_path, 
+                        batch_size=N_BATCH, #data_type='train',
+ 			start=train_start, 
+                        stop=train_stop, nu_indx=params['nu_indx'])
 
     val_start = 80
     val_stop = 90
-    val_generator = dataloaders.dataLoader2D_static(x_path, y_path, 
-                        batch_size=N_BATCH, start=val_start, 
-                        stop=val_stop, nu_indx=nu_indx)
+    val_generator = dataloaders.dataLoader3D_static(x_path, y_path, 
+                        batch_size=N_BATCH, # data_type='val', 
+			start=val_start, 
+                        stop=val_stop, nu_indx=params['nu_indx'])
 
     t1 = time.time()
 
@@ -115,17 +122,15 @@ def train_unet(params, out_dir):
                             patience=10, min_lr=0.0001, verbose=1)
 
     N_EPOCHS = params['num_epochs']
-    history = model.fit_generator(train_generator,
-                                          epochs=N_EPOCHS,validation_data=val_generator, 
-                                          use_multiprocessing=False, workers=workers)#
-                                          #, callbacks=[checkpoint])
+    history = model.fit(train_generator, epochs=N_EPOCHS,validation_data=val_generator, 
+                                          use_multiprocessing=False, workers=workers)#, callbacks=[checkpoint])
 
     # make validation prediction
     y_pred = model.predict(val_generator, workers=5, steps=np.ceil(768*10/N_BATCH))
     # pull out y_true
     y_true = val_generator.__gettruth__()
 
-    return history, model, y_pred, y_true, nu_indx
+    return history, model, y_pred, y_true
 
 if __name__ == '__main__':
 
@@ -134,7 +139,7 @@ if __name__ == '__main__':
         os.mkdir(params['out_dir'])
         
     # make specific output dir
-    out_dir = params['out_dir'] + 'unet_{}conv_{}deep/'.format(params['conv_width'], params['network_depth'])
+    out_dir = params['out_dir'] + 'unet3d_{}conv_{}deep/'.format(params['conv_width'], params['network_depth'])
 
     # create output directory
     if not os.path.exists(out_dir): 
@@ -143,7 +148,7 @@ if __name__ == '__main__':
 
     t1 = time.time()
 
-    history,model,y_pred,y_true,nu_indx = train_unet(params, out_dir)
+    history,model,y_pred,y_true = train_unet(params, out_dir)
 
     t2 = time.time()
 
@@ -175,7 +180,4 @@ if __name__ == '__main__':
 
     outfile = out_dir + 'y_true'
     np.save(outfile, y_true)
-
-    outfile = out_dir + 'nu_indx'
-    np.save(outfile, nu_indx)
 
