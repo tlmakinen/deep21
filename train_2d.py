@@ -19,7 +19,7 @@ import multiprocessing
 import os, sys
 # import relevant unet model
 from unet import unet_2d
-from data_utils import dataloaders
+from data_utils import dataloaders, my_callbacks
 
 def get_available_gpus():
    local_device_protos = device_lib.list_local_devices()
@@ -40,12 +40,14 @@ params = {
     'conv_width' : int(sys.argv[1]),
     'network_depth': 4,
     'batch_size' : 48,
-    'num_epochs' : 200,
+    'num_epochs' : 100,
     'act' : 'relu',
     'lr': 0.0001,
     'out_dir': 'trials/',
     'nu_indx': np.arange(32),
-    'shuffle_nu': False
+    'shuffle_nu': False,
+    'out_dir': 'unet2d_{}width/'.format(int(sys.argv[1])),
+    'data_path': '/mnt/home/tmakinen/ceph/data_ska/data/',
     }
 
 def train_unet(params, out_dir):
@@ -85,47 +87,51 @@ def train_unet(params, out_dir):
     if params['shuffle_nu']:
         np.random.shuffle(nu_indx)
 
+
     # load data 
-    x_path = '/mnt/home/tmakinen/ceph/data_ska/'
-    y_path = '/mnt/home/tmakinen/ceph/data_ska/'
-    workers = multiprocessing.cpu_count() // 5
+    path = params['data_path']
+    workers = 4
     train_start = 0
     train_stop = 50
-    train_generator = dataloaders.dataLoader2D_static(x_path, y_path, 
-                        batch_size=N_BATCH, start=train_start, 
-                        stop=train_stop, nu_indx=nu_indx)
+    train_generator = dataloaders.dataLoaderDeep21(path, 
+                        is_3d=False, data_type='train', 
+                        batch_size=N_BATCH, num_sets=5,
+ 			            start=train_start, stop=train_stop,
+                        aug=True)
 
     val_start = 80
     val_stop = 90
-    val_generator = dataloaders.dataLoader2D_static(x_path, y_path, 
-                        batch_size=N_BATCH, start=val_start, 
-                        stop=val_stop, nu_indx=nu_indx)
+    val_generator = dataloaders.dataLoaderDeep21(path, 
+                        is_3d=False, data_type='val', 
+                        batch_size=N_BATCH, num_sets=5,
+ 			            start=val_start, stop=val_stop,
+                        aug=True)
 
-    t1 = time.time()
 
-    # DEFINE CALLBACKS
+    # DEFINE CALLBACKS  
     # create checkpoint method to save model in the event of walltime timeout
     ## LATER: modify to compute 2D power spectrum
     best_fname = out_dir + 'best_model.h5'
     checkpoint = ModelCheckpoint(best_fname, monitor='mse', verbose=0,
-                                        save_best_only=True, mode='auto', save_freq=15)
+                                        save_best_only=True, mode='auto', period=25)
 
 
-    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.6,
-                            patience=10, min_lr=0.0001, verbose=1)
+    # reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.6,
+    #                         patience=10, min_lr=0.0001, verbose=1)
+
+    transfer = my_callbacks.transfer(val_generator, 10, batch_size=N_BATCH, patience=1, is_3d=False)
 
     N_EPOCHS = params['num_epochs']
-    history = model.fit_generator(train_generator,
-                                          epochs=N_EPOCHS,validation_data=val_generator, 
-                                          use_multiprocessing=False, workers=workers)#
-                                          #, callbacks=[checkpoint])
+    history = model.fit(train_generator, epochs=N_EPOCHS,validation_data=val_generator, 
+                                          use_multiprocessing=False, workers=workers, callbacks=[transfer, checkpoint])
 
     # make validation prediction
     y_pred = model.predict(val_generator, workers=5, steps=np.ceil(768*10/N_BATCH))
-    # pull out y_true
-    y_true = val_generator.__gettruth__()
+    
+    # save transfer function computations
+    return history, model, y_pred, transfer.get_data()
 
-    return history, model, y_pred, y_true, nu_indx
+########################################################################################################################
 
 if __name__ == '__main__':
 
@@ -134,16 +140,12 @@ if __name__ == '__main__':
         os.mkdir(params['out_dir'])
         
     # make specific output dir
-    out_dir = params['out_dir'] + 'unet_{}conv_{}deep/'.format(params['conv_width'], params['network_depth'])
-
-    # create output directory
-    if not os.path.exists(out_dir): 
-        os.mkdir(out_dir)
+    out_dir = params['out_dir']
 
 
     t1 = time.time()
 
-    history,model,y_pred,y_true,nu_indx = train_unet(params, out_dir)
+    history,model,y_pred,transfer = train_unet(params, out_dir)
 
     t2 = time.time()
 
@@ -154,6 +156,7 @@ if __name__ == '__main__':
     model_fname = 'model.h5'
     history_fname = 'history'
     weights_fname = "weights.h5"
+    transfer_fname = 'transfer'
 
 
     outfile = out_dir + model_fname
@@ -169,13 +172,18 @@ if __name__ == '__main__':
         pickle.dump(history.history, file_pi)
     file_pi.close()
 
+    # pickle the transfer object
+    outfile = out_dir + transfer_fname	
+    with open(outfile, 'wb') as file_pi:
+        pickle.dump(transfer, file_pi)
+    file_pi.close()
+
     # compute y_pred using the best model weights
     outfile = out_dir + 'y_pred'
     np.save(outfile, y_pred)
 
-    outfile = out_dir + 'y_true'
-    np.save(outfile, y_true)
-
-    outfile = out_dir + 'nu_indx'
-    np.save(outfile, nu_indx)
-
+    # save all model params for later reference
+    outfile = out_dir + 'params'
+    with open(outfile, 'wb') as file_pi:
+        pickle.dump(transfer, file_pi)
+    file_pi.close()

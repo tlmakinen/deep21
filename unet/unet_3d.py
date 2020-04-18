@@ -24,14 +24,15 @@ class unet3D():
                     `momentum`: batchnorm param, set to 0.1 for outputs, (default=0.9)
                     `epsilon`: batchnorm param (default = 1e-5) 
                     `activation`: activation function for outputs (default = 'relu')
-                    `maxpool`: whether or not to use MaxPool feature to downsamplee (default = True)
+                    `maxpool`: whether or not to use MaxPool feature to downsample (default = True)
     """
 
     def __init__(self, n_filters = 16, conv_width=1, 
                  network_depth = 4,
-                 n_cubes_in=2, n_cubes_out=1,
+                 n_cubes_in=1, n_cubes_out=1,
                  x_dim=32, dropout = 0.0, 
-                 growth_factor=2, batchnorm_in = True,
+                 growth_factor=2, batchnorm_in=True,
+                 batchnorm_down=True, batchnorm_up=False,
                  batchnorm_out=False,
                  out_act = False, 
                  momentum=0.1, epsilon=1e-5,
@@ -47,6 +48,8 @@ class unet3D():
         self.dropout = dropout
         self.growth_factor = growth_factor
         self.batchnorm_in = batchnorm_in
+        self.batchnorm_down = batchnorm_down
+        self.batchnorm_up = batchnorm_up
         self.batchnorm_out = batchnorm_out
         self.out_act = out_act,
         self.momentum = momentum
@@ -98,9 +101,9 @@ class unet3D():
         concat_down = []
         # downsample path
         for l in range(network_depth):
-            x = self.conv_block(x, n_filters, n_layers=self.conv_width,strides=1) 
+            x = self.conv_block(x, n_filters, n_layers=self.conv_width,strides=1, batchnorm=self.batchnorm_in) 
             concat_down.append(x)
-            x = self.conv_block(x, n_filters, n_layers=1, batchnorm=True, strides=2, 
+            x = self.conv_block(x, n_filters, n_layers=1, batchnorm=self.batchnorm_down, strides=2, 
                                     maxpool=self.maxpool, layer_num=l+1)
             n_filters *= growth_factor
         
@@ -113,7 +116,7 @@ class unet3D():
         n_filters //= growth_factor
         for l in range(network_depth):
             x = Conv3DTranspose(n_filters, kernel_size=3, strides=2, padding='same')(x)
-            if self.batchnorm_out:            
+            if self.batchnorm_up:            
                 x = BatchNormalization(momentum=momentum, epsilon=self.epsilon)(x)
             if self.out_act:
                 x = Activation(self.activation)(x)

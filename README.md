@@ -11,7 +11,9 @@ Contents:
         
 - `data_utils`: 
    - Data loaded using `dataloaders.py` to generate noisy simulations in batch-sized chunks for network to train
-
+   - `my_callbacks.py` for computing transfer function accuracy during training
 - `train_nD.py`: scripts for training appropriate model. Modify Python dictionary input for appropriate number of training epochs
 
+- `hyperopt`: 
+   - folder for hyperparameter tuning on given dataset
 

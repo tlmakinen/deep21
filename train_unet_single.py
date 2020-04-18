@@ -6,6 +6,7 @@ from __future__ import absolute_import, division, print_function
 import numpy as np
 import tensorflow as tf
 from tensorflow import keras
+from tensorflow.keras.callbacks import ModelCheckpoint
 import time
 from tensorflow.python.client import device_lib
 import pickle
@@ -28,7 +29,7 @@ if __name__ == '__main__':
 	# build model
 	model = un.unet_3Layer()
 	#model = keras.models.load_model('models_network1/model_full_1')
-
+    
 	N_GPU = 2
 	N_GPU = len(get_available_gpus())
 	print('num gpu:', N_GPU)
@@ -39,7 +40,7 @@ if __name__ == '__main__':
 			print("Training using single GPU or CPU..")
 	# compile model with specified loss and optimizer
 	model.compile(optimizer=keras.optimizers.Adam(learning_rate=0.001, beta_1=0.9, beta_2=0.999, amsgrad=True), 
-								loss="mse",metrics=["accuracy"])
+								loss="mse",metrics=["mse"])
 
 	# create output directory
 	if not os.path.exists('unet_results/'): 

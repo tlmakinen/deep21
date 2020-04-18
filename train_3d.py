@@ -19,8 +19,11 @@ import multiprocessing
 import os, sys
 # import relevant unet model
 from unet import unet_3d
-from data_utils import dataloaders
+from data_utils import dataloaders, my_callbacks
 
+########################################################################################################################
+
+# HELPER FUNCTIONS
 def get_available_gpus():
    local_device_protos = device_lib.list_local_devices()
    return [x.name for x in local_device_protos if x.device_type  == "GPU"]
@@ -38,40 +41,55 @@ def build_compile(net, params, N_GPU):
                             beta_1=0.9, beta_2=0.999, amsgrad=True), loss="mse",metrics=["mse"])
     return model
 
+########################################################################################################################
+
 # DEFINE INPUT PARAMS
 params = {
     'n_filters' : 16,
     'n_cubes_in': 1,
     'n_cubes_out': 1,
-    'conv_width' : 1,
-    'network_depth': int(sys.argv[1]),
+    'conv_width' : 2,
+    'network_depth': 4,
     'batch_size' : 48,
     'num_epochs' : 200,
     'act' : 'relu',
     'lr': 0.0001,
-    'out_dir': 'trials/',
-    'nu_indx': np.arange(32),
-    'load_weights': False
-    }
+    'batchnorm_in': True,
+    'batchnorm_out': False,
+    'batchnorm_up': False,
+    'batchnorm_down': False,
+    'momentum': 0.06,
+    'out_dir': 'model_{}/'.format(int(sys.argv[1])),
+    'data_path': '/mnt/home/tmakinen/ceph/data_ska/nu_bin_2/',
+    'nu_indx': None,
+    'load_weights': True,
+    'noise_level': None
+}
 
+
+########################################################################################################################
+
+# MAIN TRAINING FUNCTION
 def train_unet(params, out_dir):
     # initialize model
-    model = unet_3d.unet3D(n_filters=params['n_filters'], conv_width=params['conv_width'],
-                        network_depth=params['network_depth'], n_cubes_in=params['n_cubes_in'], 
-                                                                    n_cubes_out=params['n_cubes_out'])
+    model = unet_3d.unet3D(n_filters=16, conv_width=params['conv_width'],
+                        network_depth=params['network_depth'], batchnorm_down=params['batchnorm_down'],
+                        batchnorm_in=params['batchnorm_in'], batchnorm_out=params['batchnorm_out'],
+                        batchnorm_up=params['batchnorm_up'], momentum=params['momentum'],
+                        n_cubes_in=1, n_cubes_out=1)
     
     # check available gpus
     N_GPU = len(get_available_gpus())
 
     if N_GPU > 1:
-        #strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy()
+        strategy = tf.distribute.experimental.MultiWorkerMirroredStrategy()
         NUM_WORKERS = N_GPU
 
         N_BATCH = params['batch_size'] * NUM_WORKERS
 
-        #with strategy.scope():
+        with strategy.scope():
         # Model building/compiling need to be within `strategy.scope()`.
-        model = build_compile(model, params, N_GPU)
+            model = build_compile(model, params, N_GPU)
 
         print("Training using multiple GPUs..")
 
@@ -91,46 +109,49 @@ def train_unet(params, out_dir):
 
 
     # load data 
-    x_path = '/mnt/home/tmakinen/ceph/data_ska/'
-    y_path = '/mnt/home/tmakinen/ceph/data_ska/'
-    workers = multiprocessing.cpu_count() // 5
+    path = params['data_path']
+    workers = 4
     train_start = 0
-    train_stop = 50
-    train_generator = dataloaders.dataLoader3D_static(x_path, y_path, 
-                        batch_size=N_BATCH, #data_type='train',
- 			start=train_start, 
-                        stop=train_stop, nu_indx=params['nu_indx'])
+    train_stop = 70
+    train_generator = dataloaders.dataLoaderDeep21(path, 
+                        is_3d=True, data_type='train', 
+                        batch_size=N_BATCH, num_sets=3,
+				    start=train_start, stop=train_stop,
+                        aug=True)
 
     val_start = 80
     val_stop = 90
-    val_generator = dataloaders.dataLoader3D_static(x_path, y_path, 
-                        batch_size=N_BATCH, # data_type='val', 
-			start=val_start, 
-                        stop=val_stop, nu_indx=params['nu_indx'])
+    val_generator = dataloaders.dataLoaderDeep21(path, 
+                        is_3d=True, data_type='val', 
+                        batch_size=N_BATCH, num_sets=3,
+				    start=val_start, stop=val_stop,
+                        aug=True)
 
-    t1 = time.time()
 
-    # DEFINE CALLBACKS
+    # DEFINE CALLBACKS  
     # create checkpoint method to save model in the event of walltime timeout
     ## LATER: modify to compute 2D power spectrum
     best_fname = out_dir + 'best_model.h5'
-    checkpoint = ModelCheckpoint(best_fname, monitor='mse', verbose=0,
-                                        save_best_only=True, mode='auto', save_freq=15)
+    checkpoint = ModelCheckpoint(best_fname, monitor='val_mse', verbose=0,
+                                        save_best_only=True, mode='auto', period=25)
 
 
-    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.6,
-                            patience=10, min_lr=0.0001, verbose=1)
+    reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1,
+                             patience=4, min_lr=1e-6, verbose=1)
+
+    transfer = my_callbacks.transfer(val_generator, 10, batch_size=N_BATCH, patience=1)
 
     N_EPOCHS = params['num_epochs']
     history = model.fit(train_generator, epochs=N_EPOCHS,validation_data=val_generator, 
-                                          use_multiprocessing=False, workers=workers)#, callbacks=[checkpoint])
+                                          use_multiprocessing=False, workers=workers, callbacks=[reduce_lr, transfer, checkpoint])
 
     # make validation prediction
-    y_pred = model.predict(val_generator, workers=5, steps=np.ceil(768*10/N_BATCH))
-    # pull out y_true
-    y_true = val_generator.__gettruth__()
+    y_pred = model.predict(val_generator, workers=4, steps=np.ceil(768*10/N_BATCH))
+    
+    # save transfer function computations
+    return history, model, y_pred, transfer.get_data()
 
-    return history, model, y_pred, y_true
+########################################################################################################################
 
 if __name__ == '__main__':
 
@@ -139,16 +160,12 @@ if __name__ == '__main__':
         os.mkdir(params['out_dir'])
         
     # make specific output dir
-    out_dir = params['out_dir'] + 'unet3d_{}conv_{}deep/'.format(params['conv_width'], params['network_depth'])
-
-    # create output directory
-    if not os.path.exists(out_dir): 
-        os.mkdir(out_dir)
+    out_dir = params['out_dir']
 
 
     t1 = time.time()
 
-    history,model,y_pred,y_true = train_unet(params, out_dir)
+    history,model,y_pred,transfer = train_unet(params, out_dir)
 
     t2 = time.time()
 
@@ -159,7 +176,10 @@ if __name__ == '__main__':
     model_fname = 'model.h5'
     history_fname = 'history'
     weights_fname = "weights.h5"
-
+    transfer_fname = 'transfer'
+    if params['load_weights']:
+        history_fname += '_continued'
+        transfer_fname += '_continued'
 
     outfile = out_dir + model_fname
     model.save(outfile)
@@ -174,10 +194,18 @@ if __name__ == '__main__':
         pickle.dump(history.history, file_pi)
     file_pi.close()
 
+    # pickle the transfer object
+    outfile = out_dir + transfer_fname	
+    with open(outfile, 'wb') as file_pi:
+        pickle.dump(transfer, file_pi)
+    file_pi.close()
+
     # compute y_pred using the best model weights
     outfile = out_dir + 'y_pred'
     np.save(outfile, y_pred)
 
-    outfile = out_dir + 'y_true'
-    np.save(outfile, y_true)
-
+    # save all model params for later reference
+    outfile = out_dir + 'params'
+    with open(outfile, 'wb') as file_pi:
+        pickle.dump(transfer, file_pi)
+    file_pi.close()

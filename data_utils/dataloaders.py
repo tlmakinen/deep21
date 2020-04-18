@@ -7,6 +7,84 @@ from tensorflow.python.keras.utils.data_utils import Sequence
 import h5py
 import os
 
+class dataLoaderDeep21(Sequence):
+    'Generates random subset of simulation data per epoch for Keras'
+    def __init__(self, 
+                 path, 
+                 data_type='train', 
+                 is_3d = True,
+                 batch_size=48, 
+                 num_sets=1,
+                 start=0, stop=90,
+                 shuffle=False, 
+                 nu_indx=None,
+                 aug = True
+                ):
+        
+        
+        'Initialization'
+        self.data_type = data_type
+        self.is_3d = is_3d
+        self.start = start
+        self.stop = stop
+        self.num_sets = num_sets
+        self.nwinds = 768          # simulation param, num bricks per sim
+        self.batch_size = batch_size
+        self.shuffle = shuffle
+        self.nu_indx = nu_indx
+        self.path = path
+        self.aug = aug
+        self.fname = path +  'dataset_%d.h5'%(int(np.ceil(np.random.rand()*self.num_sets)))
+        self.datafile = h5py.File(self.fname, 'r')[self.data_type]
+        
+
+
+    def __len__(self):
+        return int(np.floor(((self.stop-self.start)*self.nwinds) // self.batch_size))
+
+    def __getitem__(self, idx):
+        #fname = self.path +  'dataset_%d.h5'%(int(np.ceil(np.random.rand()*self.num_sets)))
+        x,y = self.load_data(idx)
+        
+        return x,y
+    
+    def on_epoch_end(self):
+        # switch up dataset every other time
+        if np.random.rand() > 0.5:
+            self.fname = self.path +  'dataset_%d.h5'%(int(np.ceil(np.random.rand()*self.num_sets)))
+            self.datafile = h5py.File(self.fname, 'r')[self.data_type]
+    
+    
+    def load_data(self, idx):
+        #d = h5py.File(fname, 'r')[self.data_type][idx * self.batch_size:(idx + 1) * self.batch_size]
+        d = self.datafile[idx * self.batch_size:(idx + 1) * self.batch_size]
+        x = d.T[0].T
+        y = d.T[1].T
+        
+        # flip boxes according to random draw:
+        r = np.random.rand()
+        
+        if self.aug:        
+            # random image reflections across x and y
+            if r < 0.33:
+                x = x[:, ::-1, :, :]
+                y = y[:, ::-1, :, :]
+
+            if r > 0.66:
+                x = x[:, :, ::-1, :]
+                y = y[:, :, ::-1, :]
+
+        # rearrange frequencies if desired with input indexes
+        if self.nu_indx is not None:
+            x = x.T[self.nu_indx].T       
+            y = y.T[self.nu_indx].T   
+        
+        if self.is_3d:
+            x = np.expand_dims(x, axis=-1)
+            y = np.expand_dims(y, axis=-1)
+
+        return x,y
+
 class dataLoader3D(Sequence):
     'Generates random subset of simulation data per epoch for Keras'
     def __init__(self, 
@@ -58,10 +136,12 @@ class dataLoader3D(Sequence):
         d = np.expand_dims(d, axis=-1)
         return d
 
+
+
 class dataLoader3D_static(Sequence):
     'Generates random subset of simulation data per epoch for Keras'
     def __init__(self, x_path, y_path, batch_size=48, 
-                    num = 50,
+                    num_sets = 3,
                     start=0, stop=80,
                     shuffle=False, nu_indx=None):
         
@@ -71,7 +151,7 @@ class dataLoader3D_static(Sequence):
         self.stop = stop
         self.nwinds = 768          # simulation param, num bricks per sim
         self.y_fnames = [y_path + 'cosmo/cosmo_nnu032_sim%03d.npy'%(i+1) for i in range(start, stop)]
-        self.x_fnames = [x_path + 'pca3_%d/pca_3comp_nnu32_sim%03d.npy'%(int(np.ceil(np.random.rand()*5)),i+1) for i in range(start, stop)]
+        self.x_fnames = [x_path + '_%d/pca_3comp_nnu32_sim%03d.npy'%(int(np.ceil(np.random.rand()*num_sets)),i+1) for i in range(start, stop)]
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.nu_indx = nu_indx
@@ -116,7 +196,8 @@ class dataLoader3D_obs(Sequence):
         self.nwinds = 768          # simulation param, num bricks per sim
         self.y_fnames = [y_path + 'cosmo/cosmo_nnu032_sim%03d.npy'%(i+1) for i in range(start, stop)]
         self.x_dir = os.listdir(x_path + '_1')
-        self.x_fnames = [ x_path + '_%d/'%(int(np.ceil(np.random.rand()*num_sets))) + self.x_dir[i+1] for i in range(start, stop)]
+        self.x_fnames = [ x_path + '_%d/'%(int(np.ceil(np.random.rand()*num_sets))) + 
+                                                        self.x_dir[i+1] for i in range(start, stop)]
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.nu_indx = nu_indx
@@ -208,7 +289,7 @@ class dataLoader2D(Sequence):
 class dataLoader2D_static(Sequence):
     'Generates random subset of simulation data per epoch for Keras'
     def __init__(self, x_path, y_path, batch_size=48, 
-                    start=1, stop=20,
+                    start=1, stop=20, num_sets=5,
                     shuffle=False, nu_indx=None):
         
         
@@ -217,7 +298,7 @@ class dataLoader2D_static(Sequence):
         self.stop = stop
         self.nwinds = 768          # simulation param, num bricks per sim
         self.y_fnames = [y_path + 'cosmo/cosmo_nnu032_sim%03d.npy'%(i+1) for i in range(start, stop)]
-        self.x_fnames = [x_path + 'pca3_%d/pca_3comp_nnu32_sim%03d.npy'%(int(np.ceil(np.random.rand()*5)),i+1) for i in range(start, stop)]
+        self.x_fnames = [x_path + 'pca3_%d/pca_3comp_nnu32_sim%03d.npy'%(int(np.ceil(np.random.rand()*num_sets)),i+1) for i in range(start, stop)]
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.nu_indx = nu_indx
