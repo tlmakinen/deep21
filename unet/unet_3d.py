@@ -8,7 +8,7 @@ import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.layers import Conv3D, BatchNormalization, Conv3DTranspose, concatenate,\
                                     MaxPool3D, Activation, LeakyReLU, Dropout
-
+from tensorflow.keras.regularizers import l2
 class unet3D():  
     """
     General class for building fully connected 3D convolutional UNet
@@ -36,7 +36,8 @@ class unet3D():
                  batchnorm_out=False,
                  out_act = False, 
                  momentum=0.1, epsilon=1e-5,
-                 activation='relu', maxpool=False
+                 activation='relu', maxpool=False,
+                 weight_decay = 1e-5
                  ):
         
         self.n_filters = n_filters
@@ -56,7 +57,7 @@ class unet3D():
         self.epsilon = epsilon
         self.activation = activation
         self.maxpool = maxpool        
-        
+        self.wd = weight_decay
         # define all layers
         
     def conv_block(self, input_tensor, n_filters, n_layers=1, strides=1, kernel_size=3, \
@@ -80,7 +81,7 @@ class unet3D():
         else:
             for l in range(n_layers):        
                 x = Conv3D(filters = n_filters, kernel_size = (kernel_size, kernel_size, kernel_size),\
-                      padding = 'same', strides=strides, name=name)(x)
+                      padding = 'same', strides=strides, name=name, activity_regularizer=l2(self.wd))(x)
 
                 if batchnorm:
                     x = BatchNormalization(momentum=momentum)(x)   
@@ -115,7 +116,7 @@ class unet3D():
         # expansive path
         n_filters //= growth_factor
         for l in range(network_depth):
-            x = Conv3DTranspose(n_filters, kernel_size=3, strides=2, padding='same')(x)
+            x = Conv3DTranspose(n_filters, kernel_size=3, strides=2, padding='same', activity_regularizer=l2(self.wd))(x)
             if self.batchnorm_up:            
                 x = BatchNormalization(momentum=momentum, epsilon=self.epsilon)(x)
             if self.out_act:
@@ -125,7 +126,7 @@ class unet3D():
                                         strides=1, batchnorm=self.batchnorm_out, momentum=self.momentum)   
             n_filters //= growth_factor
             
-        output = Conv3DTranspose(self.n_cubes_out,1,padding="same",name="output")(x)
+        output = Conv3DTranspose(self.n_cubes_out,1,padding="same",name="output", activity_regularizer=l2(self.wd))(x)
 
         # return model
         model = keras.models.Model(inputs=inputs,outputs=output)

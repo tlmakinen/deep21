@@ -31,16 +31,15 @@ def run_trial(args):
 
 #TODO: Declare your hyperparameter priors here:
 space = {
+    'network_depth': hp.choice('network_depth', [4, 5]),
+    'conv_width': hp.choice('conv_width', [2, 3]),
     'n_filters' : hp.choice('n_filters', [8,16,32]),
-    'conv_width' : hp.choice('conv_width', [1, 2]),
-    'network_depth': hp.choice('network_depth', [3,4,5]),
-    'batch_size' : hp.qloguniform('batch_size', np.log(24), np.log(768), 1),
-    'lr': hp.lognormal('lr', -7.5, 2.5),
-    'batchnorm_in': hp.choice('batchnorm_in', [True, False]),
-    'batchnorm_out': hp.choice('batchnorm_out', [True, False]),
-    'batchnorm_up': hp.choice('batchnorm_up', [True, False]),
-    'batchnorm_down': hp.choice('batchnorm_down', [True, False]),
-    'momentum': hp.loguniform('momentum', np.log(0.05), np.log(0.95))
+    'lr': hp.lognormal('lr', -8.5, 2.5),
+    'wd': hp.lognormal('wd', -11.5, 2.5),
+    'l2_wd': hp.lognormal('l2_wd', -11.5, 2.5),
+    'act': hp.choice('act', ['relu', tf.keras.layers.PReLU()]),
+    'momentum': hp.loguniform('momentum', np.log(0.001), np.log(0.75)),
+    'batchnorm': hp.choice('batchnorm', [True, False])
 }
 
 ################################################################################
