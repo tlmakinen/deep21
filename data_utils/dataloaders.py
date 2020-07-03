@@ -15,64 +15,92 @@ class dataLoaderDeep21(Sequence):
                  is_3d = True,
                  batch_size=48, 
                  num_sets=1,
-                 start=0, stop=90,
-                 shuffle=False, 
+                 sample_size=20,
+                 shuffle=False,
+                 bin_min = 1,
+                 bin_max = 160, 
                  nu_indx=None,
-                 aug = True
+                 aug = True,
+                 stoch = True
                 ):
         
         
         'Initialization'
         self.data_type = data_type
         self.is_3d = is_3d
-        self.start = start
-        self.stop = stop
+        self.sample_size = sample_size
         self.num_sets = num_sets
         self.nwinds = 768          # simulation param, num bricks per sim
         self.batch_size = batch_size
         self.shuffle = shuffle
-        self.nu_indx = nu_indx
+        self.bin_min = bin_min - 1 # python indexes from 0
+        self.bin_max = bin_max - 1
         self.path = path
+        self.stoch = stoch
         self.aug = aug
         self.fname = path +  'dataset_%d.h5'%(int(np.ceil(np.random.rand()*self.num_sets)))
-        self.datafile = h5py.File(self.fname, 'r')[self.data_type]
-        
+        self.datafile = h5py.File(self.fname, 'r')
+        self._dat_length = len(self.datafile[self.data_type])
+        self.datafile.close()
+        self.indexes = np.arange(self.nwinds*self.sample_size)
+        self.nu_indx = nu_indx
+        self.on_epoch_end()
 
 
     def __len__(self):
-        return int(np.floor(((self.stop-self.start)*self.nwinds) // self.batch_size))
+        return int(np.floor(((self.sample_size)*self.nwinds) // self.batch_size))
 
     def __getitem__(self, idx):
         #fname = self.path +  'dataset_%d.h5'%(int(np.ceil(np.random.rand()*self.num_sets)))
+        #ind = self.indexes[idx]  # index in terms of shuffled data
         x,y = self.load_data(idx)
         
         return x,y
     
     def on_epoch_end(self):
-        # switch up dataset every other time
+        # switch up dataset every other time to change noise
         if np.random.rand() > 0.5:
+           # self.datafile.close()
             self.fname = self.path +  'dataset_%d.h5'%(int(np.ceil(np.random.rand()*self.num_sets)))
-            self.datafile = h5py.File(self.fname, 'r')[self.data_type]
+           # self.datafile = h5py.File(self.fname, 'r')
+
+        # draw randomly with replacement but keep dataset fixed
+        if self.stoch:
+            # now shuffle the dataset indices in chunks of self.nwinds:
+            inds = np.arange(self._dat_length).reshape(-1, 768)
+            l = np.arange(len(inds))
+            # choose random skies with replacement
+            inds = inds[np.random.choice(l, size=self.sample_size)]
+            # reshape array
+            inds = inds.reshape(self.sample_size*self.nwinds)
+            self.indexes = inds
+
+
+
     
     
     def load_data(self, idx):
-        #d = h5py.File(fname, 'r')[self.data_type][idx * self.batch_size:(idx + 1) * self.batch_size]
-        d = self.datafile[idx * self.batch_size:(idx + 1) * self.batch_size]
+        self.datafile = h5py.File(self.fname, 'r')
+        d = self.datafile[self.data_type][self.indexes[idx*self.batch_size:(idx+1)*self.batch_size], :, :, self.bin_min:self.bin_max, : ]
         x = d.T[0].T
-        y = d.T[1].T
+        y = d.T[1].T; del d
+        self.datafile.close()
         
         # flip boxes according to random draw:
         r = np.random.rand()
         
         if self.aug:        
-            # random image reflections across x and y
-            if r < 0.33:
-                x = x[:, ::-1, :, :]
-                y = y[:, ::-1, :, :]
+            # random image rotations in x and y
+            if r < 0.25:
+                x = np.rot90(x, k=1, axes=(1,2))
+                y = np.rot90(y, k=1, axes=(1,2))
 
-            if r > 0.66:
-                x = x[:, :, ::-1, :]
-                y = y[:, :, ::-1, :]
+            elif r < 0.50:
+                x = np.rot90(x, k=-1, axes=(1,2))
+                y = np.rot90(y, k=-1, axes=(1,2))
+            elif r < 0.75:
+                x = np.rot90(x, k=-2, axes=(1,2))
+                y = np.rot90(y, k=-2, axes=(1,2))	
 
         # rearrange frequencies if desired with input indexes
         if self.nu_indx is not None:
@@ -143,12 +171,15 @@ class dataLoader3D_static(Sequence):
     def __init__(self, x_path, y_path, batch_size=48, 
                     num_sets = 3,
                     start=0, stop=80,
-                    shuffle=False, nu_indx=None):
+                    shuffle=False, 
+                    nu_indx=None, 
+                    aug=True):
         
         
         'Initialization'
         self.start = start
         self.stop = stop
+        self.aug = aug
         self.nwinds = 768          # simulation param, num bricks per sim
         self.y_fnames = [y_path + 'cosmo/cosmo_nnu032_sim%03d.npy'%(i+1) for i in range(start, stop)]
         self.x_fnames = [x_path + '_%d/pca_3comp_nnu32_sim%03d.npy'%(int(np.ceil(np.random.rand()*num_sets)),i+1) for i in range(start, stop)]

@@ -1,0 +1,6 @@
+2
+Traceback (most recent call last):
+  File "make1_h5.py", line 25, in <module>
+    data = np.concatenate([(np.load('/mnt/home/tmakinen/ceph/pca_ska/data_%d/pca3_sim%03d.npy'%(j+1, i+1))) for i in range(90)], axis=0)
+  File "<__array_function__ internals>", line 6, in concatenate
+MemoryError: Unable to allocate 364. GiB for an array with shape (69120, 32, 32, 690) and data type float64
