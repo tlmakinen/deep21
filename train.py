@@ -28,28 +28,28 @@ from data_utils import dataloaders, my_callbacks
 
 # DEFINE INPUT PARAMS
 params = {
-    'bin_min'   : 175,
-    'bin_max'   : 207,
-    'n_filters' : 16,
-    'n_cubes_in': 1,
-    'n_cubes_out': 1,
-    'conv_width' : 2,
-    'nu_dim'     : 32,
-    'network_depth': 5,
-    'batch_size' : 48,
-    'num_epochs' : 100,
-    'act' : 'relu', #tf.keras.layers.PReLU(),
-    'lr': 0.0001, #0.005647691873692045,
-    'batchnorm_in': True,
-    'batchnorm_out': True,
-    'batchnorm_up': True,
+    'bin_min'       : 1,
+    'bin_max'       : 161,
+    'nu_start'      : 1,
+    'nu_skip'       : 5,
+    'nu_dim'        : 32,
+    'n_filters'     : 32,
+    'conv_width'    : 3,
+    'network_depth' : 5,
+    'batch_size'    : 48,
+    'num_epochs'    : 200,
+    'act'           : 'relu', #tf.keras.layers.PReLU(),
+    'lr'            : 0.0001, #0.005647691873692045,
+    'batchnorm_in'  : True,
+    'batchnorm_out' : False,
+    'batchnorm_up'  : False,
     'batchnorm_down': True,
-    'momentum':  0.021165395601698535,
-    'out_dir': 'model_{}/'.format(int(sys.argv[1])),
-    'data_path': '/mnt/home/tmakinen/ceph/pca_ska/',
-    'nu_indx': None,
-    'load_model': False,
-    'noise_level': None
+    'momentum'      :  0.021165395601698535,
+    'model_num'     : int(sys.argv[1]),
+    'data_path'     : '/mnt/home/tmakinen/ceph/pca_ska/avg/',
+    'nu_indx'       : None,
+    'load_model'    : False,
+    'noise_level'   : None
 }
 
 best_params = {
@@ -79,7 +79,7 @@ def build_compile(net, params, N_GPU):
 
         if params['load_model']:
             model = net.build_model()
-            model.load_weights(out_dir + 'best_weights_{}_{}.h5'.format(params['bin_min'], params['bin_max']))
+            model.load_weights(out_dir + 'best_weights_{}.h5'.format(params['model_num']))
             #model = keras.utils.multi_gpu_model(model, gpus=N_GPU)
 
         else:
@@ -87,14 +87,14 @@ def build_compile(net, params, N_GPU):
             model = net.build_model()
     else:
         if params['load_model']:
-            model = keras.models.load_model(out_dir + 'best_model_{}_{}.h5'.format(params['bin_min'], params['bin_max']))
+            model = keras.models.load_model(out_dir + 'best_model_{}.h5'.format(params['model_num']))
         
         else:
             model = net.build_model()
 
  
     model.compile(optimizer=keras.optimizers.Adam(learning_rate=best_params['lr'],
-                            beta_1=0.9, beta_2=0.999, amsgrad=False), loss="mse",metrics=["mse", custom_loss])
+                            beta_1=0.9, beta_2=0.999, amsgrad=False), loss=custom_loss,metrics=["mse", custom_loss])
     return model
 
 ########################################################################################################################
@@ -110,8 +110,8 @@ def train_unet(params, out_dir):
                            batchnorm_in=params['batchnorm_in'], 
                            batchnorm_out=params['batchnorm_out'],
                            batchnorm_up=params['batchnorm_up'], 
-                           momentum=params['momentum'],
-                           n_cubes_in=1, n_cubes_out=1)
+                           momentum=params['momentum']
+                           )
     
     # check available gpus
     N_GPU = len(get_available_gpus())
@@ -134,8 +134,8 @@ def train_unet(params, out_dir):
         print("Training using single GPU..")
 
     print('-'*10, 'now training unet on ', N_GPU, ' GPUs, output writing to ', out_dir, '-'*10)
-    print('\n','_'*10, 'learning within frequency bins %d--%d'%(params['bin_min'], params['bin_max']-1), '_'*10)
-
+    print('\n','-'*10, 'learning within frequency bins %d--%d'%(params['bin_min'], params['bin_max']-1), '-'*10)
+    print('\n', '-'*10, 'skipping every %d frequency, starting from nu=%d'%(params['nu_skip'], params['nu_start']), '-'*10)
     # create output directory
     if not os.path.exists(out_dir): 
         os.mkdir(out_dir)
@@ -144,13 +144,14 @@ def train_unet(params, out_dir):
     # load data 
     path = params['data_path']
     workers = 4
-    sample_size = 50
+    sample_size = 60
     train_generator = dataloaders.dataLoaderDeep21(
                         path,
                         bin_min=params['bin_min'], 
                         bin_max=params['bin_max'], 
                         is_3d=True, data_type='train', 
-                        batch_size=N_BATCH, num_sets=1,
+                        batch_size=N_BATCH, num_sets=3,
+                        nu_skip=params['nu_skip'],
                         sample_size=sample_size,
                         stoch=True,
                         aug=True)
@@ -161,7 +162,8 @@ def train_unet(params, out_dir):
                         bin_min=params['bin_min'],
                         bin_max=params['bin_max'], 
                         is_3d=True, data_type='val', 
-                        batch_size=N_BATCH, num_sets=1,
+                        batch_size=N_BATCH, num_sets=3,
+                        nu_skip=params['nu_skip'],
                         sample_size=sample_size,
                         stoch=True,
                         aug=True)
@@ -170,10 +172,10 @@ def train_unet(params, out_dir):
     # DEFINE CALLBACKS  
     # create checkpoint method to save model in the event of walltime timeout
     ## LATER: modify to compute 2D power spectrum
-    best_fname = out_dir + 'best_model_{}_{}.h5'.format(params['bin_min'], params['bin_max'])
+    best_fname = out_dir + 'best_model_{}.h5'.format(params['model_num'])
     model_checkpoint = ModelCheckpoint(best_fname, monitor='val_mse', verbose=0,
                                         save_best_only=True, mode='auto', period=25)
-    best_fname = out_dir + 'best_weights_{}_{}.h5'.format(params['bin_min'], params['bin_max'])
+    best_fname = out_dir + 'best_weights_{}.h5'.format(params['model_num'])
     weight_checkpoint = ModelCheckpoint(best_fname, monitor='val_mse', verbose=0, save_weights_only=True,
                                         save_best_only=True, mode='auto', period=25)
 
@@ -203,13 +205,14 @@ def train_unet(params, out_dir):
 
 if __name__ == '__main__':
 
-    # create output directory
-    if not os.path.exists(params['out_dir']): 
-        os.mkdir(params['out_dir'])
+    # create output directoryi
+    out_dir = 'results_logp_{}_{}/'.format(params['bin_min'], params['bin_max'])
+    if not os.path.exists(out_dir): 
+        os.mkdir(out_dir)
 
-    # make specific output dir
-    out_dir = params['out_dir']
-
+    # make specific output dir for model #
+    #out_dir = params['out_dir']
+    
 
     t1 = time.time()
 
@@ -221,9 +224,9 @@ if __name__ == '__main__':
 
     # save the results of the training
     # make outdirectories
-    model_fname = 'model_{}_{}.h5'.format(params['bin_min'], params['bin_max'])
-    history_fname = 'history_{}_{}'.format(params['bin_min'], params['bin_max'])
-    weights_fname = "weights_{}_{}.h5".format(params['bin_min'], params['bin_max'])
+    model_fname = 'model_{}.h5'.format(params['model_num'])
+    history_fname = 'history_{}'.format(params['model_num'])
+    weights_fname = "weights_{}.h5".format(params['model_num'])
     #transfer_fname = 'transfer'
     if params['load_model']:
         history_fname += '_continued'

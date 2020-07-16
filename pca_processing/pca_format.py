@@ -40,14 +40,14 @@ def gen_rearr(nside):
 
 
 # INPUTS FROM COMMAND LINE
-SNUM = int(sys.argv[2])
+SNUM = int(sys.argv[3])
 dataset_num = int(sys.argv[1])
 
-COMPONENTS = [3]
+COMPONENTS = [int(sys.argv[2])]
 
 # OUTPUT DIRECTORIES
 dirstr = "/mnt/home/tmakinen/ceph/ska2"
-output_base = "/mnt/home/tmakinen/ceph/pca_ska/"
+output_base = "/mnt/home/tmakinen/ceph/pca_ska/avg"
 out_dir = output_base + '/data_%d/'%(dataset_num) 
 
 if not os.path.exists(out_dir):
@@ -56,12 +56,12 @@ if not os.path.exists(out_dir):
 ## what bin we want to start / end from 
 NU_START = 1
 # number to be processed for deep21
-N_NU_OUT = 690
+N_NU_OUT = 32
 # NUMBER OF FREQS TO SKIP / AVERAGE TOGETHER
-NU_AVG = 1 # = N_FREQS // N_FREQ_BINS // N_NU_OUT
+NU_AVG = 5 # = N_FREQS // N_FREQ_BINS // N_NU_OUT
 
 # AVERAGE FREQUENCIES ?
-DO_NU_AVG = False
+DO_NU_AVG = True
 # NOISE ADDITION ?
 ADD_NOISE = True
 
@@ -86,7 +86,6 @@ NU_ARR = np.arange(NU_START, NU_STOP, NU_AVG)
 
 # "GLOBAL" parameters
 (NU_L,NU_H) = (1,N_NU_OUT*NU_AVG)
-DO_NU_AVG = True
 N_SKIP = NU_AVG
 N_FREQS = 690
 N_FREQ_BINS = 4

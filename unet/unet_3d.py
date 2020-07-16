@@ -7,7 +7,7 @@ import matplotlib.pyplot as plt
 import tensorflow as tf
 from tensorflow import keras
 from tensorflow.keras.layers import Conv3D, BatchNormalization, Conv3DTranspose, concatenate,\
-                                    MaxPool3D, Activation, LeakyReLU, Dropout
+                                    MaxPool3D, Activation, LeakyReLU, Dropout, Add
 from tensorflow.keras.regularizers import l2
 class unet3D():  
     """
@@ -30,14 +30,14 @@ class unet3D():
     def __init__(self, n_filters = 16, conv_width=1, 
                  network_depth = 4,
                  n_cubes_in=1, n_cubes_out=1,
-                 x_dim=32, dropout = 0.0, 
+                 x_dim=32, nu_dim=32, dropout = 0.0, 
                  growth_factor=2, batchnorm_in=True,
                  batchnorm_down=True, batchnorm_up=False,
                  batchnorm_out=False,
                  out_act = False, 
                  momentum=0.1, epsilon=1e-5,
                  activation='relu', maxpool=False,
-                 weight_decay = 1e-5
+                 weight_decay = 1e-7
                  ):
         
         self.n_filters = n_filters
@@ -46,6 +46,7 @@ class unet3D():
         self.conv_width = conv_width
         self.network_depth = network_depth
         self.x_dim = x_dim
+        self.nu_dim = nu_dim
         self.dropout = dropout
         self.growth_factor = growth_factor
         self.batchnorm_in = batchnorm_in
@@ -58,6 +59,7 @@ class unet3D():
         self.activation = activation
         self.maxpool = maxpool        
         self.wd = weight_decay
+        #self.initializer = tf.keras.initializers.he_normal(seed=12)
         # define all layers
         
     def conv_block(self, input_tensor, n_filters, n_layers=1, strides=1, kernel_size=3, \
@@ -79,12 +81,17 @@ class unet3D():
             
         
         else:
-            for l in range(n_layers):        
+            #identity = x
+            for l in range(n_layers):      
+                if l == 1:
+                    identity = x
                 x = Conv3D(filters = n_filters, kernel_size = (kernel_size, kernel_size, kernel_size),\
-                      padding = 'same', strides=strides, name=name, activity_regularizer=l2(self.wd))(x)
-
+                      padding = 'same', strides=strides, name=name)(x)
                 if batchnorm:
-                    x = BatchNormalization(momentum=momentum)(x)   
+                    x = BatchNormalization(momentum=momentum)(x)
+                #x = Activation(self.activation)(x)
+                if (n_layers > 1) and (l == n_layers-1):
+                    x = Add()([x, identity]); del identity
                 x = Activation(self.activation)(x)    
             return x           
                      
@@ -94,17 +101,18 @@ class unet3D():
         n_filters = self.n_filters
         growth_factor = self.growth_factor
         x_dim = self.x_dim
+        nu_dim = self.nu_dim
         momentum = self.momentum
 
         # start with inputs
-        inputs = keras.layers.Input(shape=(x_dim, x_dim, x_dim, self.n_cubes_in),name="image_input")
+        inputs = keras.layers.Input(shape=(x_dim, x_dim, nu_dim, self.n_cubes_in),name="image_input")
         x = inputs
         concat_down = []
         # downsample path
         for l in range(network_depth):
-            x = self.conv_block(x, n_filters, n_layers=self.conv_width,strides=1, batchnorm=self.batchnorm_in) 
+            x = self.conv_block(x, n_filters, n_layers=self.conv_width,strides=1, batchnorm=self.batchnorm_in, momentum=momentum) 
             concat_down.append(x)
-            x = self.conv_block(x, n_filters, n_layers=1, batchnorm=self.batchnorm_down, strides=2, 
+            x = self.conv_block(x, n_filters, n_layers=1, batchnorm=self.batchnorm_down, momentum=momentum, strides=2, 
                                     maxpool=self.maxpool, layer_num=l+1)
             n_filters *= growth_factor
         
@@ -116,17 +124,24 @@ class unet3D():
         # expansive path
         n_filters //= growth_factor
         for l in range(network_depth):
-            x = Conv3DTranspose(n_filters, kernel_size=3, strides=2, padding='same', activity_regularizer=l2(self.wd))(x)
-            if self.batchnorm_up:            
+            if l+1 == network_depth:
+                batchnorm_out = False            # remove batchnormalization for last convolution block
+                batchnorm_up = False
+            else:
+                batchnorm_out = self.batchnorm_out
+                batchnorm_up = self.batchnorm_up
+                
+            x = Conv3DTranspose(n_filters, kernel_size=3, strides=2, padding='same')(x)
+            if batchnorm_up:            
                 x = BatchNormalization(momentum=momentum, epsilon=self.epsilon)(x)
             if self.out_act:
                 x = Activation(self.activation)(x)
             x = concatenate([x, concat_down[l]])
             x = self.conv_block(x, n_filters, n_layers=self.conv_width, kernel_size=3, 
-                                        strides=1, batchnorm=self.batchnorm_out, momentum=self.momentum)   
+                                        strides=1, batchnorm=batchnorm_out, momentum=self.momentum)   
             n_filters //= growth_factor
             
-        output = Conv3DTranspose(self.n_cubes_out,1,padding="same",name="output", activity_regularizer=l2(self.wd))(x)
+        output = Conv3DTranspose(self.n_cubes_out,1,padding="same",name="output")(x)
 
         # return model
         model = keras.models.Model(inputs=inputs,outputs=output)

@@ -1,8 +1,8 @@
 #!/bin/bash
 #SBATCH -p gpu
-#SBATCH --job-name=bin1
+#SBATCH --job-name=nu_avg_logp
 #SBATCH --array=1-5
-#SBATCH --output=bin1_%A_%a.out
+#SBATCH --output=nu_avg_%A_%a.out
 #SBATCH --nodes=1
 # SBATCH --ntasks=4
 #SBATCH --cpus-per-task=4

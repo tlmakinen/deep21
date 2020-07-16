@@ -64,11 +64,15 @@ class unet2D():
         
         else:
             for _ in range(n_layers):        
+                identity = x
                 x = Conv2D(filters = n_filters, kernel_size = (kernel_size, kernel_size),\
                       padding = 'same', strides=strides, name=name)(x)
 
                 if batchnorm:
                     x = BatchNormalization(momentum=momentum)(x)   
+                x = Activation(self.activation)(x)
+                if l > 0:
+                    x = Add()([x, identity])
                 x = Activation(self.activation)(x)    
             return x           
                      
