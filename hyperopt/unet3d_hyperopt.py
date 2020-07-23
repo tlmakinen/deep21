@@ -22,24 +22,28 @@ from data_utils import dataloaders
 
 # DEFINE INPUT PARAMS
 configs = {
-    'n_filters' : 16,
-    'n_cubes_in': 1,
-    'n_cubes_out': 1,
-    'conv_width' : 2,
-    'network_depth': 5,
-    'batch_size' : 48,
-    'num_epochs' : 30,
-    'act' : 'relu',
-    'lr': 0.0001,
-    'batchnorm_in': True,
-    'batchnorm_out': False,
-    'batchnorm_up': False,
+    'bin_min'       : 1,
+    'bin_max'       : 161,
+    'nu_start'      : 1,
+    'nu_skip'       : 5,
+    'nu_dim'        : 32,
+    'n_filters'     : 32,
+    'conv_width'    : 3,
+    'network_depth' : 5,
+    'batch_size'    : 48,
+    'num_epochs'    : 20,
+    'act'           : 'relu', #tf.keras.layers.PReLU(),
+    'lr'            : 0.0001, #0.005647691873692045,
+    'batchnorm_in'  : True,
+    'batchnorm_out' : False,
+    'batchnorm_up'  : False,
     'batchnorm_down': True,
-    'momentum': 0.02,
-    'data_path': '/mnt/home/tmakinen/ceph/data_ska/nu_bin_2/',
-    'nu_indx': None,
-    'load_model': False,
-    'noise_level': None
+    'momentum'      :  0.021165395601698535,
+    'model_num'     : int(sys.argv[1]),
+    'data_path'     : '/mnt/home/tmakinen/ceph/pca_ska/avg/',
+    'nu_indx'       : None,
+    'load_model'    : False,
+    'noise_level'   : None
 }
 ########################################################################################################################
 import tensorflow.keras.backend as K
@@ -59,7 +63,7 @@ def build_compile(net, params, N_GPU):
 
     model = net.build_model()    
  
-    model.compile(optimizer=tfa.optimizers.AdamW(learning_rate=params['lr'], weight_decay=params['wd'], 
+    model.compile(optimizer=tfa.optimizers.Adam(learning_rate=params['lr'], 
                             beta_1=0.9, beta_2=0.999, amsgrad=False), loss="mse",metrics=["mse", custom_loss])
     return model
 
@@ -68,11 +72,15 @@ def build_compile(net, params, N_GPU):
 # MAIN TRAINING FUNCTION
 def train_unet(params):
     # initialize model
-    model = unet_3d.unet3D(n_filters=params['n_filters'], conv_width=params['conv_width'],
-                        network_depth=params['network_depth'], batchnorm_down=params['batchnorm'],
-                        batchnorm_in=params['batchnorm'], batchnorm_out=params['batchnorm'],
-                        batchnorm_up=params['batchnorm'], momentum=params['momentum'],
-                        n_cubes_in=1, n_cubes_out=1, weight_decay=params['l2_wd'])
+    model = unet_3d.unet3D(n_filters=params['n_filters'], 
+                           nu_dim=configs['nu_dim'],
+                           conv_width=params['conv_width'],
+                           network_depth=params['network_depth'], 
+                           batchnorm_down=params['batchnorm'],
+                           batchnorm_in=params['batchnorm'], 
+                           batchnorm_out=params['batchnorm'],
+                           batchnorm_up=params['batchnorm'], 
+                           momentum=params['momentum'])
     
     # check available gpus
     N_GPU = len(get_available_gpus())
@@ -99,21 +107,29 @@ def train_unet(params):
     # load data 
     path = configs['data_path']
     sample_size = 20
-    train_generator = dataloaders.dataLoaderDeep21(path, 
-                        is_3d=True, data_type='train', 
+    workers = 4
+    train_generator = dataloaders.dataLoaderDeep21(
+                        path,
+                        bin_min=configs['bin_min'],
+                        bin_max=configs['bin_max'],
+                        is_3d=True, data_type='train',
                         batch_size=N_BATCH, num_sets=3,
+                        nu_skip=configs['nu_skip'],
                         sample_size=sample_size,
                         stoch=True,
                         aug=True)
 
-    sample_size=5
-    val_generator = dataloaders.dataLoaderDeep21(path, 
-                        is_3d=True, data_type='val', 
+    sample_size=8
+    val_generator = dataloaders.dataLoaderDeep21(
+                        path,
+                        bin_min=configs['bin_min'],
+                        bin_max=configs['bin_max'],
+                        is_3d=True, data_type='val',
                         batch_size=N_BATCH, num_sets=3,
+                        nu_skip=configs['nu_skip'],
                         sample_size=sample_size,
                         stoch=True,
                         aug=True)
-
 
 
     N_EPOCHS = configs['num_epochs']

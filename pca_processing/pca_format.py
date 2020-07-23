@@ -47,7 +47,7 @@ COMPONENTS = [int(sys.argv[2])]
 
 # OUTPUT DIRECTORIES
 dirstr = "/mnt/home/tmakinen/ceph/ska2"
-output_base = "/mnt/home/tmakinen/ceph/pca_ska/avg"
+output_base = "/mnt/home/tmakinen/ceph/pca_ska/nside4_avg"
 out_dir = output_base + '/data_%d/'%(dataset_num) 
 
 if not os.path.exists(out_dir):
@@ -56,12 +56,12 @@ if not os.path.exists(out_dir):
 ## what bin we want to start / end from 
 NU_START = 1
 # number to be processed for deep21
-N_NU_OUT = 32
+N_NU_OUT = 64
 # NUMBER OF FREQS TO SKIP / AVERAGE TOGETHER
-NU_AVG = 5 # = N_FREQS // N_FREQ_BINS // N_NU_OUT
+NU_AVG = 3 # = N_FREQS // N_FREQ_BINS // N_NU_OUT
 
 # AVERAGE FREQUENCIES ?
-DO_NU_AVG = True
+DO_NU_AVG = False
 # NOISE ADDITION ?
 ADD_NOISE = True
 
@@ -82,7 +82,7 @@ N_NU = N_NU_OUT * NU_AVG
 
 # index of freqs
 NU_STOP = NU_START + N_NU
-NU_ARR = np.arange(NU_START, NU_STOP, NU_AVG)
+NU_ARR = np.arange(NU_START, NU_STOP)
 
 # "GLOBAL" parameters
 (NU_L,NU_H) = (1,N_NU_OUT*NU_AVG)
@@ -92,7 +92,7 @@ N_FREQ_BINS = 4
 assert(((NU_H-NU_L + 1)%NU_AVG) ==0)
 MAP_NSIDE = 256
 SIM_NSIDE = MAP_NSIDE
-WINDOW_NSIDE = 8
+WINDOW_NSIDE = 4
 NUM_SIMS = 1
 # resolution of the outgoing window
 NPIX_WINDOW = (MAP_NSIDE/WINDOW_NSIDE)**2
@@ -151,6 +151,7 @@ if __name__ == '__main__':
             cosmo = cosmo.T[::NU_AVG].T
             cosmo_n = cosmo_n.T[::NU_AVG].T
             
+            print('cosmo shape: ', cosmo.shape) 
 
         obs = fgd + cosmo_n
 

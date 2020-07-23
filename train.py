@@ -36,7 +36,7 @@ params = {
     'n_filters'     : 32,
     'conv_width'    : 3,
     'network_depth' : 5,
-    'batch_size'    : 48,
+    'batch_size'    : 16,
     'num_epochs'    : 200,
     'act'           : 'relu', #tf.keras.layers.PReLU(),
     'lr'            : 0.0001, #0.005647691873692045,
