@@ -29,42 +29,41 @@ from data_utils import dataloaders, my_callbacks
 # DEFINE INPUT PARAMS
 params = {
     'bin_min'       : 1,
-    'bin_max'       : 161,
+    'bin_max'       : 193,
     'nu_start'      : 1,
-    'nu_skip'       : 5,
-    'nu_dim'        : 32,
+    'nu_skip'       : 3,
+    'nu_dim'        : 64,
+    'x_dim'         : 64,
     'n_filters'     : 32,
     'conv_width'    : 3,
-    'network_depth' : 5,
+    'network_depth' : 6,
     'batch_size'    : 16,
     'num_epochs'    : 200,
     'act'           : 'relu', #tf.keras.layers.PReLU(),
-    'lr'            : 0.0001, #0.005647691873692045,
+    'lr'            : 0.0002, #0.005647691873692045,
+    'wd'            : 1e-5,
     'batchnorm_in'  : True,
-    'batchnorm_out' : False,
-    'batchnorm_up'  : False,
+    'batchnorm_out' : True,
+    'batchnorm_up'  : True,
     'batchnorm_down': True,
     'momentum'      :  0.021165395601698535,
     'model_num'     : int(sys.argv[1]),
-    'data_path'     : '/mnt/home/tmakinen/ceph/pca_ska/avg/',
+    'data_path'     : '/mnt/home/tmakinen/ceph/pca_ska/polarized/',
+    'out_dir'       : '/mnt/home/tmakinen/ceph/deep21_results/polarized/',
+    'model_path'    : '/mnt/home/tmakinen/jobs2/results_logp_1_193/',
     'nu_indx'       : None,
     'load_model'    : False,
     'noise_level'   : None
 }
-
-best_params = {
-    'act': 'relu', 
-    'lr': 0.0001, 
-    'momentum': 0.021165395601698535, 
-    'n_filters': 32, 
-    'network_depth': 3,
-    'wd': 6.471248573904279e-06}
+  
 ########################################################################################################################
 import tensorflow.keras.backend as K
 def custom_loss(y_true, y_pred):
    sig = K.mean(K.std(y_true - y_pred)) + 1e-6  # for numerical stability
    return K.log(sig) + (keras.metrics.mse(y_true, y_pred) / (2*K.square(sig))) + 10
 
+def custom_loss2(y_true, y_pred):
+    return None
 
 ########################################################################################################################
 
@@ -78,6 +77,7 @@ def build_compile(net, params, N_GPU):
     if N_GPU > 1:
 
         if params['load_model']:
+            print('loading weights')
             model = net.build_model()
             model.load_weights(out_dir + 'best_weights_{}.h5'.format(params['model_num']))
             #model = keras.utils.multi_gpu_model(model, gpus=N_GPU)
@@ -87,14 +87,18 @@ def build_compile(net, params, N_GPU):
             model = net.build_model()
     else:
         if params['load_model']:
+            print('loading weights')
             model = keras.models.load_model(out_dir + 'best_model_{}.h5'.format(params['model_num']))
         
         else:
             model = net.build_model()
 
  
-    model.compile(optimizer=keras.optimizers.Adam(learning_rate=best_params['lr'],
-                            beta_1=0.9, beta_2=0.999, amsgrad=False), loss=custom_loss,metrics=["mse", custom_loss])
+   # model.compile(optimizer=keras.optimizers.Adam(learning_rate=best_params['lr'],
+   #                         beta_1=0.9, beta_2=0.999, amsgrad=False), loss="mse",metrics=["mse", custom_loss])
+    model.compile(optimizer=tfa.optimizers.AdamW(learning_rate=params['lr'], weight_decay=params['wd'], 
+                            beta_1=0.9, beta_2=0.999, amsgrad=False), loss="mse",metrics=["mse", custom_loss])    
+
     return model
 
 ########################################################################################################################
@@ -105,6 +109,7 @@ def train_unet(params, out_dir):
     model = unet_3d.unet3D(n_filters=params['n_filters'], 
                            conv_width=params['conv_width'],
                            nu_dim=params['nu_dim'],
+                           x_dim=params['x_dim'],
                            network_depth=params['network_depth'], 
                            batchnorm_down=params['batchnorm_down'],
                            batchnorm_in=params['batchnorm_in'], 
@@ -144,27 +149,29 @@ def train_unet(params, out_dir):
     # load data 
     path = params['data_path']
     workers = 4
-    sample_size = 60
+    sample_size = 70
     train_generator = dataloaders.dataLoaderDeep21(
                         path,
                         bin_min=params['bin_min'], 
                         bin_max=params['bin_max'], 
                         is_3d=True, data_type='train', 
-                        batch_size=N_BATCH, num_sets=3,
+                        batch_size=N_BATCH, num_sets=2,
                         nu_skip=params['nu_skip'],
                         sample_size=sample_size,
+                        nwinds=192,
                         stoch=True,
                         aug=True)
 
-    sample_size=8
+    sample_size=9
     val_generator = dataloaders.dataLoaderDeep21(
                         path,
                         bin_min=params['bin_min'],
                         bin_max=params['bin_max'], 
                         is_3d=True, data_type='val', 
-                        batch_size=N_BATCH, num_sets=3,
+                        batch_size=N_BATCH, num_sets=2,
                         nu_skip=params['nu_skip'],
                         sample_size=sample_size,
+                        nwinds=192,
                         stoch=True,
                         aug=True)
 
@@ -174,17 +181,17 @@ def train_unet(params, out_dir):
     ## LATER: modify to compute 2D power spectrum
     best_fname = out_dir + 'best_model_{}.h5'.format(params['model_num'])
     model_checkpoint = ModelCheckpoint(best_fname, monitor='val_mse', verbose=0,
-                                        save_best_only=True, mode='auto', period=25)
+                                        save_best_only=True, mode='auto', period=10)
     best_fname = out_dir + 'best_weights_{}.h5'.format(params['model_num'])
     weight_checkpoint = ModelCheckpoint(best_fname, monitor='val_mse', verbose=0, save_weights_only=True,
-                                        save_best_only=True, mode='auto', period=25)
+                                        save_best_only=True, mode='auto', period=10)
 
 
     reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1,
                              patience=10, min_lr=1e-15, verbose=1)
 
-    #clr = my_callbacks.CyclicLR(base_lr=1e-5, max_lr=0.001,
-     #                  step_size=80, mode='exp_range', gamma=0.99994)
+    clr = my_callbacks.CyclicLR(base_lr=1e-6, max_lr=0.0003,
+                       step_size=80, mode='exp_range', gamma=0.99994)
 
     #transfer = my_callbacks.transfer(val_generator, 10, batch_size=N_BATCH, patience=1)
 
@@ -206,7 +213,7 @@ def train_unet(params, out_dir):
 if __name__ == '__main__':
 
     # create output directoryi
-    out_dir = 'results_logp_{}_{}/'.format(params['bin_min'], params['bin_max'])
+    out_dir = params['out_dir'] +  'unet_results_{}_{}/'.format(params['bin_min'], params['bin_max'])
     if not os.path.exists(out_dir): 
         os.mkdir(out_dir)
 

@@ -35,6 +35,28 @@ def gen_rearr(nside):
         whole = np.concatenate((top,bot))
         return whole.flatten()
 
+# for rotating HEALPix maps on the sphere
+def rotate_map(hmap, rot_theta, rot_phi):
+    """
+    Take hmap (a healpix map array) and return another healpix map array 
+    which is ordered such that it has been rotated in (theta, phi) by the 
+    amounts given.
+    """
+    nside = hp.npix2nside(len(hmap))
+
+    # Get theta, phi for non-rotated map
+    t,p = hp.pix2ang(nside, np.arange(hp.nside2npix(nside))) #theta, phi
+
+    # Define a rotator
+    r = hp.Rotator(deg=False, rot=[rot_phi,rot_theta])
+
+    # Get theta, phi under rotated co-ordinates
+    trot, prot = r(t,p)
+
+    # Interpolate map onto these co-ordinates
+    rot_map = hp.get_interp_val(hmap, trot, prot)
+
+    return rot_map
 
 #------USER DEFINED DATA ARRANGEMENT PARAMETERS------#
 
@@ -48,7 +70,7 @@ COMPONENTS = [int(sys.argv[2])]
 # OUTPUT DIRECTORIES
 dirstr = "/mnt/home/tmakinen/ceph/ska2"
 output_base = "/mnt/home/tmakinen/ceph/pca_ska/nside4_avg"
-out_dir = output_base + '/data_%d/'%(dataset_num) 
+out_dir = output_base + '/data_%d/'%(dataset_num)
 
 if not os.path.exists(out_dir):
     os.mkdir(out_dir)
@@ -113,6 +135,12 @@ nu_arr = ((nu_bot + nu_top)/2.)[:-1]
 if __name__ == '__main__':
    
     print('working in frequency range ', nu_arr[NU_START-1], '--', nu_arr[NU_START + (N_NU_OUT*NU_AVG)-2])
+
+    # choose rotations on the sphere:
+    # draw theta, phi uniformly on intervals [0, pi]; [0, 2*pi]
+    rot_theta = np.random.uniform(low=-1.0, high=1.0)*(np.pi / 2)
+    rot_phi   = np.random.uniform(low=-1.0, high=1.0)*2*(np.pi)
+    print('rotating maps by theta = ', rot_theta, 'phi = ', rot_phi)    
  
     # initialize the PCA algorithm
     pca = PCA()
@@ -155,6 +183,11 @@ if __name__ == '__main__':
 
         obs = fgd + cosmo_n
 
+        # do random rotation of map on sky 
+        print("Now I'm rotating each map on the sphere...")
+        obs = np.array([rotate_map(o, rot_theta, rot_phi) for o in obs.T]).T
+        cosmo = np.array([rotate_map(o, rot_theta, rot_phi) for o in cosmo.T]).T        
+        
         # do PCA removal of however many components
 
         pca.fit(obs)
@@ -189,6 +222,7 @@ if __name__ == '__main__':
                 pca_outs[s][ind] = to_rearr
                 
             
+                        
             np.save("%s/pca%d_sim%03d"%(out_dir,N_COMP_MASK,SNUM),pca_outs[s])
              
                     

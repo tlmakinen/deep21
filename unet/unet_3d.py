@@ -83,8 +83,10 @@ class unet3D():
         else:
             x = Conv3D(filters = n_filters, kernel_size = (kernel_size, kernel_size, kernel_size),\
                       padding = 'same', strides=strides, name=name)(x)
-            x = BatchNormalization(momentum=momentum)(x)
-            identity = x
+            if batchnorm:
+                x = BatchNormalization(momentum=momentum)(x)
+            x = Activation(self.activation)(x)
+           # identity = x
             for l in range(n_layers-1):      
                 x = Conv3D(filters = n_filters, kernel_size = (kernel_size, kernel_size, kernel_size),\
                       padding = 'same', strides=strides, name=name)(x)
@@ -93,8 +95,8 @@ class unet3D():
                 x = Activation(self.activation)(x)
                 #if (n_layers > 1) and (l == n_layers-1):
                 
-            x = Add()([x, identity]); del identity
-            x = Activation(self.activation)(x)    
+           # x = Add()([x, identity]); del identity
+           # x = Activation(self.activation)(x)    
             return x           
                      
     

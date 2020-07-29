@@ -157,9 +157,9 @@ def angularPowerSpec(y_true, prediction, bin_min, bin_max, nu_arr, rearr, nu_ran
             if not os.path.exists(out_dir):
                 os.mkdir(out_dir)
 
-            np.save(out_dir + name + '_cl_res_nu_%03d'%(nu_arr[i]), np.array(res_Cl))
-            np.save(out_dir + name + '_cl_pred_nu_%03d'%(nu_arr[i]), np.array(pred_Cl))
-            np.save(out_dir + 'cl_cosmo_nu_%03d'%(nu_arr[i]), np.array(cosmo_Cl))
+            np.save(out_dir + name + '_cl_res_nu_%03d'%(nu_arr[i]), np.array(res_Cl[-1]))
+            np.save(out_dir + name + '_cl_pred_nu_%03d'%(nu_arr[i]), np.array(pred_Cl[-1]))
+            np.save(out_dir + 'cl_cosmo_nu_%03d'%(nu_arr[i]), np.array(cosmo_Cl[-1]))
  
         
     return np.array(cosmo_Cl), np.array(pred_Cl), np.array(res_Cl)
@@ -192,7 +192,10 @@ def radialPka(in_map, n_nu=32, num_sims=1, k_min=0.01, k_max=0.2):
         
         # window function
         w = kaiser(n_nu, beta=14)
-        
+       
+        # subtract mean of signal
+        map_s = np.array([m - np.mean(m) for m in map_s.T]).T
+ 
         map_s= np.reshape(map_s, (V, n_nu))
         power_spec = np.sum(np.array([np.abs(fftpack.fft(j*w))**2 for j in map_s]),axis=0)/ V
         
