@@ -86,7 +86,7 @@ class unet3D():
             if batchnorm:
                 x = BatchNormalization(momentum=momentum)(x)
             x = Activation(self.activation)(x)
-           # identity = x
+            #identity = x
             for l in range(n_layers-1):      
                 x = Conv3D(filters = n_filters, kernel_size = (kernel_size, kernel_size, kernel_size),\
                       padding = 'same', strides=strides, name=name)(x)
@@ -95,8 +95,8 @@ class unet3D():
                 x = Activation(self.activation)(x)
                 #if (n_layers > 1) and (l == n_layers-1):
                 
-           # x = Add()([x, identity]); del identity
-           # x = Activation(self.activation)(x)    
+            #x = Add()([x, identity]); del identity
+            #x = Activation(self.activation)(x)    
             return x           
                      
     
@@ -116,9 +116,10 @@ class unet3D():
         for l in range(network_depth):
             x = self.conv_block(x, n_filters, n_layers=self.conv_width,strides=1, batchnorm=self.batchnorm_in, momentum=momentum) 
             concat_down.append(x)
+            n_filters *= growth_factor
             x = self.conv_block(x, n_filters, n_layers=1, batchnorm=self.batchnorm_down, momentum=momentum, strides=2, 
                                     maxpool=self.maxpool, layer_num=l+1)
-            n_filters *= growth_factor
+            #n_filters *= growth_factor
         
         # reverse order of down layers
         concat_down = concat_down[::-1]  
@@ -126,7 +127,7 @@ class unet3D():
         x = self.conv_block(x, n_filters, n_layers=self.conv_width, strides=1)
         
         # expansive path
-        n_filters //= growth_factor
+        #n_filters //= growth_factor
         for l in range(network_depth):
             if l+1 == network_depth:
                 batchnorm_out = False            # remove batchnormalization for last convolution block
@@ -134,7 +135,8 @@ class unet3D():
             else:
                 batchnorm_out = self.batchnorm_out
                 batchnorm_up = self.batchnorm_up
-                
+            
+            n_filters //= growth_factor   
             x = Conv3DTranspose(n_filters, kernel_size=3, strides=2, padding='same')(x)
             if batchnorm_up:            
                 x = BatchNormalization(momentum=momentum, epsilon=self.epsilon)(x)
@@ -143,7 +145,7 @@ class unet3D():
             x = concatenate([x, concat_down[l]])
             x = self.conv_block(x, n_filters, n_layers=self.conv_width, kernel_size=3, 
                                         strides=1, batchnorm=batchnorm_out, momentum=self.momentum)   
-            n_filters //= growth_factor
+            #n_filters //= growth_factor
             
         output = Conv3DTranspose(self.n_cubes_out,1,padding="same",name="output")(x)
 

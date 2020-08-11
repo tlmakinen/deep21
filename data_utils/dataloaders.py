@@ -45,7 +45,8 @@ class dataLoaderDeep21(Sequence):
                  nu_indx=None,
                  nu_skip=1,
                  aug = True,
-                 stoch = True
+                 stoch = True,
+                 nwinds = 768
                 ):
         
         
@@ -54,7 +55,7 @@ class dataLoaderDeep21(Sequence):
         self.is_3d = is_3d
         self.sample_size = sample_size
         self.num_sets = num_sets
-        self.nwinds = 768          # simulation param, num bricks per sim
+        self.nwinds = nwinds          # simulation param, num bricks per sim
         self.batch_size = batch_size
         self.shuffle = shuffle
         self.bin_min = bin_min - 1 # python indexes from 0
