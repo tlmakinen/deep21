@@ -26,7 +26,7 @@ class unet2D():
                  n_channels=32, x_dim=32, dropout = 0.0, 
                  growth_factor=2, batchnorm = True, 
                  momentum=0.9, epsilon=0.001,
-                 activation='relu', maxpool=False
+                 activation='relu'
                  ):
         
         self.n_filters = n_filters
@@ -40,7 +40,6 @@ class unet2D():
         self.momentum = momentum
         self.epsilon = epsilon
         self.activation = activation
-        self.maxpool = maxpool        
         
         # define all layers
         
@@ -53,28 +52,20 @@ class unet2D():
         else:
             name = None
         
-        x = input_tensor    
+        x = input_tensor       
         
-        if maxpool:
-            x = MaxPool2D(pool_size=(strides,strides), padding='same')(x)
-            if batchnorm:
-                x = BatchNormalization(momentum=momentum)(x)   
-            x = Activation(self.activation)(x)   
-            
-        
-        else:
-            for _ in range(n_layers):        
-                identity = x
-                x = Conv2D(filters = n_filters, kernel_size = (kernel_size, kernel_size),\
+        for _ in range(n_layers):        
+            identity = x
+            x = Conv2D(filters = n_filters, kernel_size = (kernel_size, kernel_size),\
                       padding = 'same', strides=strides, name=name)(x)
 
-                if batchnorm:
-                    x = BatchNormalization(momentum=momentum)(x)   
-                x = Activation(self.activation)(x)
-                if l > 0:
-                    x = Add()([x, identity])
-                x = Activation(self.activation)(x)    
-            return x           
+            if batchnorm:
+                x = BatchNormalization(momentum=momentum)(x)   
+            x = Activation(self.activation)(x)
+        #    if l > 0:
+        #        x = Add()([x, identity])
+        #    x = Activation(self.activation)(x)    
+        return x           
                      
     
     def build_model(self):
@@ -90,12 +81,13 @@ class unet2D():
         inputs = keras.layers.Input(shape=(self.x_dim, self.x_dim, self.n_channels),name="image_input")
         x = inputs
         concat_down = []
+        
         for h in range(network_depth):
             x = self.conv_block(x, n_filters, n_layers=self.conv_width,strides=1) 
             concat_down.append(x)
+            n_filters *= growth_factor
             x = self.conv_block(x, n_filters, n_layers=1, batchnorm=True, strides=2, 
                                     maxpool=self.maxpool, layer_num=h+1)
-            n_filters *= growth_factor
         
         # reverse order of down layers
         concat_down = concat_down[::-1]  
@@ -105,13 +97,14 @@ class unet2D():
         # expansive path
         n_filters //= growth_factor
         for h in range(network_depth):
+            n_filters //= growth_factor
             x = Conv2DTranspose(n_filters, kernel_size=3, strides=2, padding='same')(x)
             x = BatchNormalization(momentum=momentum, epsilon=self.epsilon)(x)
             x = Activation(self.activation)(x)
             x = concatenate([x, concat_down[h]])
             x = self.conv_block(x, n_filters, n_layers=self.conv_width, kernel_size=3, 
                                         strides=1, momentum=self.momentum)   
-            n_filters //= growth_factor
+          #  n_filters //= growth_factor
             
         ## output matches input dims
         output = Conv2DTranspose(self.n_channels,1,padding="same",name="output")(x)       
