@@ -3,10 +3,10 @@ Repository for deep convolutional neural networks (CNN) to separate cosmological
 Contents:
 - `cleanup`: 
 	- data processing from `.fits` data file format
-        - Principal Component Analysis script according to Alonso et al (2014) https://arxiv.org/abs/1409.8667
+        - Principal Component Analysis Python script `pca_format.py` according to Alonso et al (2014) https://arxiv.org/abs/1409.8667
 
 - `UNet` CNNs implemented in Keras:
-    - input and output tensor size: (32, 32, 32, 1) ~ (x, y, ![$\nu$](https://render.githubusercontent.com/render/math?math=%24%5Cnu%24), `num_bricks`) for 3D convolutions, (32,32,32) ~ (x,y,![$\nu$](https://render.githubusercontent.com/render/math?math=%24%5Cnu%24)) for 2D convolutions. 
+    - input and output tensor size: (64, 64, 64, 1) ~ (x, y, ![$\nu$](https://render.githubusercontent.com/render/math?math=%24%5Cnu%24), `num_bricks`) for 3D convolutions, (32,32,32) ~ (x,y,![$\nu$](https://render.githubusercontent.com/render/math?math=%24%5Cnu%24)) for 2D convolutions. 
     - 3D and 2D convolutional model parts stored in respective `unet/unet_Nd.py` files
         
 - `data_utils`: 

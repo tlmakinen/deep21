@@ -1,0 +1,76 @@
+{
+	"pca_params" 			:{
+		
+		"N_NU"			: 690,
+		"N_COMP_MASK"	: [3, 6],
+		"NU_AVG"		: 1,
+		"DO_NU_AVG"		: 0,
+		"N_WINDS"		: 192,
+		"WINDOW_NSIDE"  : 4,
+		"bin_min"       : 0,
+		"bin_max" 		: 192
+
+	},
+
+
+	"parent_configs"		:{
+		"is_train"		: 1,
+		"is_test"		: 0,
+		"do_analysis"	: 0
+	},
+
+
+
+	"cosmo_params"			:{
+	},
+
+	"directory_configs"		:{
+
+		"data_path"      	: "/mnt/home/tmakinen/ceph/pca_ska/nside4_avg/",
+		"model_output"		: "/mnt/home/tmakinen/ceph/deep21_results/unpolarized/unet_results_1_193",
+		"info_path"         : "/mnt/home/tmakinen/repositories/deep21/sim_info/"
+	},
+
+	"unet_params"			:{
+
+    	"bin_min"         : 1,
+	    "bin_max"         : 193,
+	    "nu_start"        : 1,
+	    "nu_skip"         : 3,
+	    "nu_dim"          : 64,
+	    "x_dim"           : 64,
+	    "n_filters"       : 32,
+	    "conv_width"      : 3,
+	    "network_depth"   : 6,
+	    "batch_size"      : 16,
+	    "num_epochs"      : 50,
+	    "act"             : "relu",
+	    "lr"              : 0.0002,
+	    "wd"              : 1e-5,
+	    "batchnorm_in"    : 1,
+	    "batchnorm_out"   : 1,
+	    "batchnorm_up"    : 1,
+	    "batchnorm_down"  : 1,
+	    "momentum"        : 0.021165395601698535,
+	    "model_num"       : 1,
+	    "data_path"       : "/mnt/home/tmakinen/ceph/pca_ska/nside4_avg/",
+	    "out_dir"         : "/mnt/home/tmakinen/ceph/deep21_results/unpolarized/",
+	    "model_path"      : "/mnt/home/tmakinen/ceph/deep21_results/unpolarized/unet_results_1_193/",
+	    "load_model"      : 0
+	},
+
+	"analysis_params"		:{
+
+		"data_path"       : "/mnt/home/tmakinen/ceph/pca_ska/nside4_avg/test/",
+		"info_path" 	  : "/mnt/home/tmakinen/repositories/deep21/sim_info/",
+		"rearr_file"      : "rearr_nside4.npy",
+		"outdir"          : "/mnt/home/tmakinen/ceph/deep21_results/unpolarized/",
+		"num_nets" 		  : 9,
+		"num_sims" 		  : 10,
+		"sim_start" 	  : 91,
+		"remove_mean"     : 0
+
+	}
+
+	
+	}
