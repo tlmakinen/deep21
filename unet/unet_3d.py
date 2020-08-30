@@ -62,7 +62,7 @@ class unet3D():
         #self.initializer = tf.keras.initializers.he_normal(seed=12)
         # define all layers
         
-    def conv_block(self, input_tensor, n_filters, n_layers=1, strides=1, kernel_size=3, \
+    def conv_block(self, x, n_filters, n_layers=1, strides=1, kernel_size=3, \
                            momentum=0.9,  batchnorm=True, layer_num=None):
         """Function to add n_blocks convolutional layers with the parameters passed to it"""
         if layer_num is not None:
@@ -71,15 +71,8 @@ class unet3D():
         else:
             name = None
         
-        x = input_tensor; del input_tensor    
-             
-        x = Conv3D(filters = n_filters, kernel_size = (kernel_size, kernel_size, kernel_size),\
-                      padding = 'same', strides=strides, name=name)(x)
-        if batchnorm:
-            x = BatchNormalization(momentum=momentum)(x)
-        x = Activation(self.activation)(x)
-            
-        for l in range(n_layers-1):      
+        for l in range(n_layers):      
+
             x = Conv3D(filters = n_filters, kernel_size = (kernel_size, kernel_size, kernel_size),\
                       padding = 'same', strides=strides, name=name)(x)
             if batchnorm:

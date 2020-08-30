@@ -22,13 +22,13 @@ from analysis_library import *
 
 # inputs for data and models to test
 model_path = '/mnt/home/tmakinen/ceph/deep21_results/unpolarized/unet_results_1_193/'
-data_path = '/mnt/home/tmakinen/ceph/pca_ska/nside4_avg/test/'
+data_path = '/mnt/home/tmakinen/ceph/deep21_results/unpolarized/polar_test/test_%03d/'%(int(sys.argv[1]))
 info_path = '/mnt/home/tmakinen/repositories/deep21/sim_info/'
 rearr_file = 'rearr_nside4.npy'
 
 
 # make outdirs for each 
-outdir = '/mnt/home/tmakinen/ceph/deep21_results/unpolarized/test_%03d/'%(int(sys.argv[1]))
+outdir = '/mnt/home/tmakinen/ceph/deep21_results/unpolarized/polar_test/test_%03d/'%(int(sys.argv[1]))
 
 
 types = ['_plus', '_minus', 'control']
@@ -45,7 +45,7 @@ bin_max = 192
 
 num_nets = 9
 num_sims = 1
-sim_num = 90 + int(sys.argv[1])
+sim_start = int(sys.argv[1])
 
 # remove mean for radial Pka ?
 remove_mean = True
@@ -58,10 +58,10 @@ if __name__ == '__main__':
         
         print('working on %d simulations, writing to %s'%(num_sims, outdir))
 
-        pca3 = np.concatenate([np.load(data_path + 'pca3_sim%03d.npy'%(sim_num)) for o in range(num_sims)])
-        pca6 = np.concatenate([np.load(data_path + 'pca6_sim%03d.npy'%(sim_num)) for o in range(num_sims)])
-        cosmo = np.concatenate([np.load(data_path + 'cosmo_sim%03d.npy'%(sim_num)) for o in range(num_sims)])
-        noise = np.concatenate([np.load(data_path + 'cosmo_noisy_sim%03d.npy'%(sim_num)) for o in range(num_sims)])
+        pca3 = np.concatenate([np.load(data_path + 'pca3.npy') for o in range(num_sims)])
+        pca6 = np.concatenate([np.load(data_path + 'pca6.npy') for o in range(num_sims)])
+        cosmo = np.concatenate([np.load(data_path + 'cosmo.npy') for o in range(num_sims)])
+        noise = np.concatenate([np.load(data_path + 'cosmo_noisy.npy') for o in range(num_sims)])
 
         # make nn prediction
         nn_preds = ensemble_prediction(model_path, num_nets, pca3, outfname=outdir)

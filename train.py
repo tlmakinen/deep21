@@ -38,7 +38,7 @@ params = {
     'conv_width'    : 3,
     'network_depth' : 6,
     'batch_size'    : 16,
-    'num_epochs'    : 200,
+    'num_epochs'    : 50,
     'act'           : 'relu', #tf.keras.layers.PReLU(),
     'lr'            : 0.0002, #0.005647691873692045,
     'wd'            : 1e-5,
@@ -48,9 +48,9 @@ params = {
     'batchnorm_down': True,
     'momentum'      :  0.021165395601698535,
     'model_num'     : int(sys.argv[1]),
-    'data_path'     : '/mnt/home/tmakinen/ceph/pca_ska/polarized/',
-    'out_dir'       : '/mnt/home/tmakinen/ceph/deep21_results/polarized/',
-    'model_path'    : '/mnt/home/tmakinen/jobs2/results_logp_1_193/',
+    'data_path'     : '/mnt/home/tmakinen/ceph/pca_ska/nside4_avg/',
+    'out_dir'       : '/mnt/home/tmakinen/ceph/deep21_results/unpolarized/',
+    'model_path'    : '/mnt/home/tmakinen/ceph/deep21_results/unpolarized/unet_results_1_193/',
     'nu_indx'       : None,
     'load_model'    : False,
     'noise_level'   : None
@@ -97,7 +97,8 @@ def build_compile(net, params, N_GPU):
    # model.compile(optimizer=keras.optimizers.Adam(learning_rate=best_params['lr'],
    #                         beta_1=0.9, beta_2=0.999, amsgrad=False), loss="mse",metrics=["mse", custom_loss])
     model.compile(optimizer=tfa.optimizers.AdamW(learning_rate=params['lr'], weight_decay=params['wd'], 
-                            beta_1=0.9, beta_2=0.999, amsgrad=False), loss="mse",metrics=["mse", custom_loss])    
+                                                 beta_1=0.9, beta_2=0.999, amsgrad=False), 
+                                                 loss="logcosh",metrics=["mse", "logcosh"])    
 
     return model
 
@@ -155,7 +156,7 @@ def train_unet(params, out_dir):
                         bin_min=params['bin_min'], 
                         bin_max=params['bin_max'], 
                         is_3d=True, data_type='train', 
-                        batch_size=N_BATCH, num_sets=2,
+                        batch_size=N_BATCH, num_sets=3,
                         nu_skip=params['nu_skip'],
                         sample_size=sample_size,
                         nwinds=192,
@@ -168,7 +169,7 @@ def train_unet(params, out_dir):
                         bin_min=params['bin_min'],
                         bin_max=params['bin_max'], 
                         is_3d=True, data_type='val', 
-                        batch_size=N_BATCH, num_sets=2,
+                        batch_size=N_BATCH, num_sets=3,
                         nu_skip=params['nu_skip'],
                         sample_size=sample_size,
                         nwinds=192,
@@ -179,19 +180,19 @@ def train_unet(params, out_dir):
     # DEFINE CALLBACKS  
     # create checkpoint method to save model in the event of walltime timeout
     ## LATER: modify to compute 2D power spectrum
-    best_fname = out_dir + 'best_model_{}.h5'.format(params['model_num'])
+    best_fname = out_dir + 'best_model_%d.h5'%(params['model_num'])
     model_checkpoint = ModelCheckpoint(best_fname, monitor='val_mse', verbose=0,
-                                        save_best_only=True, mode='auto', period=10)
-    best_fname = out_dir + 'best_weights_{}.h5'.format(params['model_num'])
+                                        save_best_only=True, mode='auto', save_freq='epoch')
+    best_fname = out_dir + 'best_weights_%d.h5'%(params['model_num'])
     weight_checkpoint = ModelCheckpoint(best_fname, monitor='val_mse', verbose=0, save_weights_only=True,
-                                        save_best_only=True, mode='auto', period=10)
+                                        save_best_only=True, mode='auto', save_freq='epoch')
 
 
     reduce_lr = ReduceLROnPlateau(monitor='val_loss', factor=0.1,
                              patience=10, min_lr=1e-15, verbose=1)
 
-    clr = my_callbacks.CyclicLR(base_lr=1e-6, max_lr=0.0003,
-                       step_size=80, mode='exp_range', gamma=0.99994)
+    clr = my_callbacks.CyclicLR(base_lr=1e-9, max_lr=params['lr'],
+                       step_size=560, mode='exp_range', gamma=0.99994)
 
     #transfer = my_callbacks.transfer(val_generator, 10, batch_size=N_BATCH, patience=1)
 

@@ -6,6 +6,7 @@
 from __future__ import absolute_import, division, print_function
 import numpy as np
 import tensorflow as tf
+import tensorflow_addons as tfa
 from tensorflow import keras
 import healpy as hp
 import h5py
@@ -42,19 +43,22 @@ def custom_loss(y_true, y_pred):
 # This routine loads the trained UNet ensemble and makes each ensemble member's
 # predictions on the input map
 
-def ensemble_prediction(model_path, num_nets, in_map, outfname):
+def ensemble_prediction(model_path, num_nets, in_map, outfname, batch_size=16):
 
     if not os.path.exists(outfname):
         os.mkdir(outfname)
 
     nn_preds = []
     for i in range(num_nets):
-        net = keras.models.load_model(model_path + 'best_model_%d.h5'%(i+1), custom_objects={'custom_loss': custom_loss})
-        prediction = net.predict(np.expand_dims(in_map, axis=-1), batch_size=48)
-        nn_preds.append(prediction)
-        del net,prediction
-
-    nn_preds = np.array(nn_preds)
+        print("now I'm making predictions with net %d"%(i+1)) 
+        net = keras.models.load_model(model_path + 'best_model_%d.h5'%(i+1), compile=False, custom_objects={'custom_loss': custom_loss, 'optimizer': tfa.optimizers.AdamW})
+        prediction = net.predict(np.expand_dims(in_map, axis=-1), batch_size=batch_size)
+        np.save(outfname + 'nn_preds_model_%d'%(i+1), prediction)
+        #nn_preds.append(prediction)
+        del net; del prediction
+    
+    # load all predictions once nn deleted
+    nn_preds = np.array([np.load(outfname + 'nn_preds_model_%d.npy'%(i+1)) for i in range(num_nets)])
     np.save(outfname + 'nn_preds', np.squeeze(nn_preds))
     
     return np.squeeze(nn_preds)
@@ -78,11 +82,11 @@ def compute_mse(y_true, y_pred):
 ###############################################################################
 # This routine computes the angular power spectra statistics for a cleaning 
 # method and corresponding true map
-def angularPowerSpec(y_true, prediction, bin_min, bin_max, nu_arr, rearr, nu_range=161, nwinds=768, nsims=1, N_NU=32, 
-                        NU_AVG=5, out_dir='', name='', save_spec=False):
+def angularPowerSpec(y_true, prediction, bin_min, bin_max, nu_arr, rearr, nu_range=161, nwinds=192, nsims=1, N_NU=64, 
+                        NU_AVG=3,out_dir='', name='', save_spec=False):
     
     rearr = np.load(rearr)
-    nwinds = 768
+    nwinds = nwinds
     N_NU = N_NU
     NU_START = bin_min
     NU_STOP = N_NU*NU_AVG  
@@ -171,11 +175,14 @@ def angularPowerSpec(y_true, prediction, bin_min, bin_max, nu_arr, rearr, nu_ran
 
 
 
-def radialPka(in_map, n_nu=32, num_sims=1, k_min=0.01, k_max=0.2):
+
+def radialPka(in_map, n_nu=64, k_min=0.01, 
+              k_max=0.2, WINDOW_NSIDE=4, cross_spec=None,
+              remove_mean=False):
     # global params
     MAP_NSIDE = 256
     SIM_NSIDE = MAP_NSIDE
-    WINDOW_NSIDE = 8
+    WINDOW_NSIDE = WINDOW_NSIDE
     NUM_SIMS = 1
     # resolution of the outgoing window
     NPIX_WINDOW = int((MAP_NSIDE/WINDOW_NSIDE)**2)
@@ -185,24 +192,61 @@ def radialPka(in_map, n_nu=32, num_sims=1, k_min=0.01, k_max=0.2):
     
     # survey volume
     V = (nwinds*WINDOW_LENGTH*WINDOW_LENGTH)
-    
-    out = []
-    for sim in range(num_sims):
-        map_s = np.array_split(in_map, len(in_map) // nwinds)[sim]
-        
-        # window function
-        w = kaiser(n_nu, beta=14)
-       
-        # subtract mean of signal
-        map_s = np.array([m - np.mean(m) for m in map_s.T]).T
- 
-        map_s= np.reshape(map_s, (V, n_nu))
-        power_spec = np.sum(np.array([np.abs(fftpack.fft(j*w))**2 for j in map_s]),axis=0)/ V
-        
-        mid = (len(power_spec) // 2)+1
-        out.append(power_spec[1:])  # ignore first mode
-    
-    k_para = np.linspace(k_min, k_max, len(out[0]))
-    
-    return k_para, np.squeeze(np.array(out))
 
+    num_sims = len(in_map) // nwinds 
+    out = []
+    
+    if cross_spec is not None:
+        
+        for sim in range(num_sims):
+            map_s1 = np.array_split(in_map, len(in_map) // nwinds)[sim]
+            
+            map_s2 = np.array_split(cross_spec, len(cross_spec) // nwinds)[sim]
+
+            # window function
+            #w = kaiser(n_nu, beta=14)
+
+            # subtract mean of signals
+            if remove_mean:
+                map_s1 = np.array([m - np.mean(m) for m in map_s1.T]).T
+                map_s2 = np.array([m - np.mean(m) for m in map_s2.T]).T
+
+            map_s1= np.reshape(map_s1, (V, n_nu))
+            map_s2= np.reshape(map_s2, (V, n_nu))
+            
+            # fft first map
+            delta1 = np.sum(np.array([np.abs(fftpack.fft(j))**2 for j in map_s1]),axis=0) / V
+            # ifft second map
+            delta2 = np.sum(np.array([(fftpack.ifft(j))**2 for j in map_s2]),axis=0) / V
+   
+            cross_spec = np.real(delta1*delta2);  del delta2,delta1
+                
+            mid = (len(cross_spec) // 2)+1
+            out.append(cross_spec[1:mid])  # ignore first mode
+
+        k_para = np.linspace(k_min, k_max, len(out[0]))
+        return k_para, np.squeeze(np.array(out))
+        
+        
+    else:
+        
+        for sim in range(num_sims):
+            map_s = np.array_split(in_map, len(in_map) // nwinds)[sim]
+
+            # window function
+            #w = kaiser(n_nu, beta=14)
+
+            # subtract mean of signal
+            if remove_mean:
+                map_s = np.array([m - np.mean(m) for m in map_s.T]).T
+
+            map_s= np.reshape(map_s, (V, n_nu))
+
+            power_spec = np.sum(np.array([np.abs(fftpack.fft(j))**2 for j in map_s]),axis=0) / V
+
+            mid = (len(power_spec) // 2)+1
+            out.append(power_spec[1:mid])  # ignore first mode
+
+        k_para = np.linspace(k_min, k_max, len(out[0]))
+
+        return k_para, np.squeeze(np.array(out))
