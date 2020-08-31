@@ -9,7 +9,7 @@ Contents:
     - input and output tensor size: (64, 64, 64, 1) ~ (x, y, ![$\nu$](https://render.githubusercontent.com/render/math?math=%24%5Cnu%24), `num_bricks`) for 3D convolutions, (64,64,64) ~ (x,y,![$\nu$](https://render.githubusercontent.com/render/math?math=%24%5Cnu%24)) for 2D convolutions. 
     - 3D and 2D convolutional model parts stored in respective `unet/unet_Nd.py` files
 - `configs`:
-   - `.joson` parent configuration file with cleaning method and analysis parameters
+   - `.json` parent configuration file with cleaning method and analysis parameters
         
 - `data_utils`: 
    - Data loaded using `dataloaders.py` to generate noisy simulations in batch-sized chunks for network to train
