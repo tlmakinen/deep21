@@ -1,5 +1,6 @@
 # fitting the data with a PCA decomposition 
 # of the input data
+# by TLM
 
 import numpy as np
 from astropy.io import fits
@@ -13,6 +14,8 @@ import json
 
 import time
 
+
+# ---------------------------------------------------------------------------------
 def log_uniform(r, min_val, max_val):
     point = 0
     if (r <= 0):
@@ -23,6 +26,8 @@ def log_uniform(r, min_val, max_val):
         point = 10.0 ** (log_min_val + r * (log_max_val - log_min_val))
     return point
 
+
+# ---------------------------------------------------------------------------------
 def gen_rearr(nside):
     # recursive funtion for finding the right 
     # ordering for the nested pixels 
@@ -36,6 +41,7 @@ def gen_rearr(nside):
         whole = np.concatenate((top,bot))
         return whole.flatten()
 
+# ---------------------------------------------------------------------------------
 # for rotating HEALPix maps on the sphere
 def rotate_map(hmap, rot_theta, rot_phi):
     """
@@ -61,9 +67,8 @@ def rotate_map(hmap, rot_theta, rot_phi):
 
 #------USER DEFINED DATA ARRANGEMENT PARAMETERS------#
 
-
 # OPEN CONFIG FILE
-config_file_path = './configs_deep21.json'
+config_file_path = sys.argv[3] + 'configs_deep21.json'
 
 with open(config_file_path) as f:
         configs = json.load(f)
@@ -72,7 +77,7 @@ dir_configs = configs["directory_configs"]
 pca_configs = configs["pca_params"]
 
 # INPUTS FROM COMMAND LINE
-SNUM = int(sys.argv[3])
+SNUM = int(sys.argv[2])
 dataset_num = int(sys.argv[1])
 
 COMPONENTS = pca_configs["N_COMP_MASK"]
@@ -100,8 +105,7 @@ ADD_NOISE = bool(pca_configs["ADD_NOISE"])
 ALPHA = None
 
 
-#---------------------------------------------------------------------
-
+# ---------------------------------------------------------------------------------
 if ALPHA is None:
     r = np.random.rand()
     alpha = log_uniform(r, 0.05, 0.5)
@@ -137,10 +141,11 @@ nwinds = int(hp.nside2npix(WINDOW_NSIDE))
 
 
 # ACTUAL FREQUENCY MEASUREMENTS
-(bn,nu_bot,nu_top,z_bot,z_top) = np.loadtxt("./nuTable.txt").T
+nutable = dir_configs["info_path"] + "nuTable.txt"
+(bn,nu_bot,nu_top,z_bot,z_top) = np.loadtxt(nutable).T
 nu_arr = ((nu_bot + nu_top)/2.)[:-1]
 
-
+# ---------------------------------------------------------------------------------
 
 if __name__ == '__main__':
    
@@ -167,31 +172,31 @@ if __name__ == '__main__':
 
     for _ in np.arange(1,NUM_SIMS + 1):
         # Open the Fits files for foreground and cosmological signal
-        fgd = np.array([fits.getdata("%s/sim_%d/fg/fg_%03d.fits"%(dirstr,SNUM,nu),1) for nu in NU_ARR],dtype=np.float64).T
-        cosmo = np.array([fits.getdata("%s/sim_%d/cosmo/cosmo_%03d.fits"%(dirstr,SNUM,nu),1) for nu in NU_ARR],dtype=np.float64).T
+        obs = np.array([fits.getdata("%ssim_%d/obs/obs_%03d.fits"%(dirstr,SNUM,nu),1) for nu in NU_ARR],dtype=np.float64).T
+        cosmo = np.array([fits.getdata("%ssim_%d/cosmo/cosmo_%03d.fits"%(dirstr,SNUM,nu),1) for nu in NU_ARR],dtype=np.float64).T
 
         ## ADD NOISE to cosmo shape: (?, NNU)
         if ADD_NOISE:
             mean_nu = [np.mean(nu) for nu in cosmo.T]  # variance of noise is derived from mean at each frequency band
             cosmo_n = np.array([cosmo.T[i] + np.random.normal(loc=0, \
                        scale=alpha*mean_nu[i], size=cosmo.T[i].shape) for i in range(len(cosmo.T))]).T
-        
+
 
         if DO_NU_AVG:
             # average in frequency bins and transpose
-            fgd = np.array([np.mean(i,axis=0) for i in np.split(fgd.T,N_NU_OUT)]).T
+            obs = np.array([np.mean(i,axis=0) for i in np.split(obs.T,N_NU_OUT)]).T
             cosmo = np.array([np.mean(i,axis=0) for i in np.split(cosmo.T,N_NU_OUT)]).T
             cosmo_n = np.array([np.mean(i,axis=0) for i in np.split(cosmo_n.T,N_NU_OUT)]).T
-            
+
         else:
             # skip every NU_AVG frequency 
-            fgd = fgd.T[::NU_AVG].T
-            cosmo = cosmo.T[::NU_AVG].T
+            obs     = obs.T[::NU_AVG].T
+            cosmo   = cosmo.T[::NU_AVG].T
             cosmo_n = cosmo_n.T[::NU_AVG].T
-            
-            print('cosmo shape: ', cosmo.shape) 
 
-        obs = fgd + cosmo_n
+
+        obs = obs + cosmo_n - cosmo # add in just the noise
+
 
         # do random rotation of map on sky
         if bool(pca_configs["DO_ROT"]): 

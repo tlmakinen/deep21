@@ -1,59 +1,88 @@
-mport time
+import time
 import numpy as np
 import h5py
 import matplotlib.pyplot as plt
-import os
+import sys,os
 
 t1 = time.time()
 
+# OPEN CONFIG FILE
+config_file_path = sys.argv[2] + 'configs_deep21.json'
+
+with open(config_file_path) as f:
+        configs = json.load(f)
+
+dir_configs = configs["directory_configs"]
+pca_configs = configs["pca_params"]
+unet_configs = configs["unet_params"]
+
+
+# which dataset we're working with
+j = int(sys.argv[1]) - 1
+
+# data shape
+data_shape = (pca_configs["N_WINDS"], unet_configs["x_dim"], 
+              unet_configs["x_dim"], unet_configs["nu_dim"], 2)
 
 # input paths
-path = '/mnt/home/tmakinen/ceph/data_ska/'
+path = dir_configs["data_path"] + "data_%d"%(j+1)
 
 # for dataset indexing
 dat_type = ['test', "train", "val"]
+num_data = pca_configs["N_SIMS"]
+# split into train and test sets
+
+num_train = int(num_data*0.80)
+num_val = int(num_data*0.1)
+num_test = int(num_data*0.1)
+
+
 
 # output paths
-output_base = "/mnt/home/tmakinen/ceph/data_ska/bin1/"
+output_base = dir_configs["data_path"]
 
 
-# take in inputs and stack 
 
-for j in range(1):
-    print(j)
-    
-    data = np.concatenate([(np.load('/mnt/home/tmakinen/ceph/data_ska/bin1/data_%d/pca3_sim%03d.npy'%(j+1, i+1))) for i in range(100)], axis=0)
-    y = np.concatenate([(np.load('/mnt/home/tmakinen/ceph/data_ska/bin1/data_%d/cosmo_sim%03d.npy'%(j+1, i+1))) for i in range(100)], axis=0)
+# open h5 file
+out_fname = output_base + "dataset_%d"%(j+1) + '.h5'
+h5f = h5py.File(out_fname, 'w')
 
-    
-    # concatenate x and y on top of one another
-    
-    data = np.stack((data,y), axis=-1)
-    
 
-    # split into train and test sets
-    
-    num_train = int(len(data)*0.80)
-    num_val = int(len(data)*0.1)
-    num_test = int(len(data)*0.1)
-    
-    test_data = data[-num_test:]
-    arr = data[:-num_test]
-    train_data = data[:num_train]
-    val_data = data[num_train:]
-    
-    arr_list = [np.array(a) for a in [test_data, train_data, val_data]]
-    
-    # open h5 file
-    out_fname = output_base + "dataset_%d"%(j+1) + '.h5'
-    h5f = h5py.File(out_fname, 'w')
-    
-    for k in range(len(dat_type)):  # indexes over train, test, val  
-        # don't transpose data so that we have [blah, 32, 32, 32, 2]
-        h5f.create_dataset(dat_type[k], data=arr_list[k])
-    
-    # close the h5 file
-    h5f.close()
+print('data shape : ', data_shape)
+
+# make training dataset
+print('assembling training data for dataset {}'.format(j+1))
+dset = h5f.create_dataset(name='train', shape=data_shape, maxshape=(None,64,64,64,2))
+for l in range(num_train):
+    # load next sim. take inputs and stack vertically along last axis
+    data = np.load(path + '_%d/pca3_sim%03d.npy'%(j+1, l+1))
+    y = np.load(path + '_%d/cosmo_sim%03d.npy'%(j+1, l+1))
+    data = np.stack((data,y), axis=-1); del y
+
+    dset[-data.shape[0]:] = data
+    # resize the dataset to accept new data
+    dset.resize(dset.shape[0]+data.shape[0], axis=0)
+
+    print('big dataset shape: ', dset.shape)
+
+
+# make val dataset
+dset = h5f.create_dataset(name='val', shape=data_shape, maxshape=(None,64,64,64,2))
+for l in range(num_train, num_train+num_val):
+    print('assembling validation data')
+    # load next sim
+    data = np.load(path + '_%d/pca3_sim%03d.npy'%(j+1, l+1))
+    y = np.load(path + '_%d/cosmo_sim%03d.npy'%(j+1, l+1))
+    data = np.stack((data,y), axis=-1); del y
+    dset[-data.shape[0]:] = data
+    # resize dataset to accept new data
+    dset.resize(dset.shape[0]+data.shape[0], axis=0)
+
+    print('big dataset shape: ', dset.shape)
+
+h5f.close()
+
+
 
 
 t2 = time.time()
