@@ -14,34 +14,52 @@ import sys,os
 import time
 
 from analysis_library import *
+import json
+
+
+# OPEN CONFIG FILE
+config_file_path = sys.argv[2] + 'configs_deep21.json'
+
+with open(config_file_path) as f:
+        configs = json.load(f)
+
+dir_configs = configs["directory_configs"]
+pca_configs = configs["pca_params"]
+unet_configs = configs["unet_params"]
+analysis_configs = configs["analysis_params"]
 
 ###############################################################################
 
 ###############################################################################
 # Define all input and output dirs
+model_path = unet_configs['model_path']
+data_path = analysis_params['data_path']
+info_path = analysis_params['info_path']
 
 # inputs for data and models to test
-model_path = '/mnt/home/tmakinen/ceph/deep21_results/unpolarized/unet_results_1_193/'
-data_path = '/mnt/home/tmakinen/ceph/pca_ska/nside4_avg/test/'
-info_path = '/mnt/home/tmakinen/repositories/deep21/sim_info/'
-rearr_file = 'rearr_nside4.npy'
+#model_path = '/mnt/home/tmakinen/jobs2/nu_avg/results_logp_1_161/'
+#data_path = '/mnt/home/tmakinen/ceph/pca_ska/avg/amp_test/'
+#info_path = '/mnt/home/tmakinen/repositories/deep21/sim_info/'
 
+rearr_file = info_path +  'rearr_nside4.npy'
+###############################################################################
+
+###############################################################################
 
 # make outdirs for each 
-outdir = '/mnt/home/tmakinen/ceph/deep21_results/unpolarized/test_%03d/'%(int(sys.argv[1]))
+outdir = analysis_params['out_dir'] + 'test_%03d/'%(int(sys.argv[1])) #'/mnt/home/tmakinen/ceph/deep21_results/unpolarized/test_%03d/'%(int(sys.argv[1]))
 
 
-types = ['_plus', '_minus', 'control']
 
 
 # data parameters
-N_NU = 64
-NU_AVG = 3
-WINDOW_NSIDE = 4
-N_WINDS = 192
+N_NU = pca_configs['N_NU_OUT']
+NU_AVG = pca_configs['NU_AVG']
+WINDOW_NSIDE = pca_configs['WINDOW_NSIDE']
+N_WINDS = pca_configs['N_WINDS']
 
-bin_min = 0
-bin_max = 192
+bin_min = unet_configs['bin_min']
+bin_max = unet_configs['bin_max']
 
 num_nets = 9
 num_sims = 1

@@ -16,11 +16,20 @@ import h5py
 import healpy as hp
 from tensorflow.keras.callbacks import ModelCheckpoint, LearningRateScheduler, ReduceLROnPlateau
 import multiprocessing
+import json
 # for parallelizing slurm jobs
 import os, sys
 # import relevant unet model
 from unet import unet_3d
 from data_utils import dataloaders, my_callbacks
+
+
+########################################################################################################################
+
+config_file_path = './configs/configs_deep21.json'
+
+with open(config_file_path) as f:
+        configs = json.load(f)
 
 
 
@@ -55,6 +64,8 @@ params = {
     'load_model'    : False,
     'noise_level'   : None
 }
+
+params = configs['unet_params']
   
 ########################################################################################################################
 import tensorflow.keras.backend as K
