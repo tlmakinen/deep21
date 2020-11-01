@@ -85,7 +85,10 @@ COMPONENTS = pca_configs["N_COMP_MASK"]
 # OUTPUT DIRECTORIES
 dirstr = dir_configs["sim_path"]
 output_base = dir_configs["data_path"]
-out_dir = output_base + '/data_%d/'%(dataset_num)
+if not os.path.exists(output_base):
+    os.mkdir(output_base)
+
+out_dir = output_base + 'data_%d/'%(dataset_num)
 
 if not os.path.exists(out_dir):
     os.mkdir(out_dir)
@@ -150,7 +153,7 @@ nu_arr = ((nu_bot + nu_top)/2.)[:-1]
 if __name__ == '__main__':
    
     print('working in frequency range ', nu_arr[NU_START-1], '--', nu_arr[NU_START + (N_NU_OUT*NU_AVG)-2])
-
+    print('writing output voxels to ', out_dir)
     # choose rotations on the sphere:
     # draw theta, phi uniformly on intervals [0, pi]; [0, 2*pi]
     rot_theta = np.random.uniform(low=-1.0, high=1.0)*(np.pi / 2)
@@ -172,8 +175,8 @@ if __name__ == '__main__':
 
     for _ in np.arange(1,NUM_SIMS + 1):
         # Open the Fits files for foreground and cosmological signal
-        obs = np.array([fits.getdata("%ssim_%d/obs/obs_%03d.fits"%(dirstr,SNUM,nu),1) for nu in NU_ARR],dtype=np.float64).T
-        cosmo = np.array([fits.getdata("%ssim_%d/cosmo/cosmo_%03d.fits"%(dirstr,SNUM,nu),1) for nu in NU_ARR],dtype=np.float64).T
+        fgd = np.array([fits.getdata("%s/sim_%d/fg/fg_%03d.fits"%(dirstr,SNUM,nu),1) for nu in NU_ARR],dtype=np.float64).T
+        cosmo = np.array([fits.getdata("%s/sim_%d/cosmo/cosmo_%03d.fits"%(dirstr,SNUM,nu),1) for nu in NU_ARR],dtype=np.float64).T
 
         ## ADD NOISE to cosmo shape: (?, NNU)
         if ADD_NOISE:
@@ -184,19 +187,19 @@ if __name__ == '__main__':
 
         if DO_NU_AVG:
             # average in frequency bins and transpose
-            obs = np.array([np.mean(i,axis=0) for i in np.split(obs.T,N_NU_OUT)]).T
+            fgd = np.array([np.mean(i,axis=0) for i in np.split(fgd.T,N_NU_OUT)]).T
             cosmo = np.array([np.mean(i,axis=0) for i in np.split(cosmo.T,N_NU_OUT)]).T
             cosmo_n = np.array([np.mean(i,axis=0) for i in np.split(cosmo_n.T,N_NU_OUT)]).T
 
         else:
             # skip every NU_AVG frequency 
-            obs     = obs.T[::NU_AVG].T
-            cosmo   = cosmo.T[::NU_AVG].T
+            fgd = fgd.T[::NU_AVG].T
+            cosmo = cosmo.T[::NU_AVG].T
             cosmo_n = cosmo_n.T[::NU_AVG].T
 
+            print('cosmo shape: ', cosmo.shape)
 
-        obs = obs + cosmo_n - cosmo # add in just the noise
-
+        obs = fgd + cosmo_n
 
         # do random rotation of map on sky
         if bool(pca_configs["DO_ROT"]): 
@@ -265,7 +268,7 @@ if __name__ == '__main__':
         f.write('\nnu_stop: ' + str(NU_STOP) + '\n')
         f.write('\naveraged: ' + str(DO_NU_AVG) + '\n')
         f.write('\nnum freq averaged / skipped : ' + str(NU_AVG) + '\n')
-        f.write('\nn_comps removed: ', COMPONENTS, '\n')
+        f.write('\nn_comps removed: ' + str(COMPONENTS) + '\n')
         f.write('\nnoise alpha : ' + str(alpha))
     f.close()
 
