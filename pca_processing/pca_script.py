@@ -265,7 +265,7 @@ if __name__ == '__main__':
         f.write('\nnu_stop: ' + str(NU_STOP) + '\n')
         f.write('\naveraged: ' + str(DO_NU_AVG) + '\n')
         f.write('\nnum freq averaged / skipped : ' + str(NU_AVG) + '\n')
-        f.write('\nn_comps removed: ' + str(*COMPONENTS) + '\n')
+        f.write('\nn_comps removed: ', COMPONENTS, '\n')
         f.write('\nnoise alpha : ' + str(alpha))
     f.close()
 
