@@ -7,10 +7,9 @@ Contents:
 - `cleanup`: 
 	- data processing from `.fits` data file format
         - Principal Component Analysis Python script `pca_format.py` according to Alonso et al (2014) https://arxiv.org/abs/1409.8667
-
+https://latex.codecogs.com/svg.latex?%2864%2C64%2C64%2C1%29%20%5Csim%20%28N_x%2C%20N_y%2C%20N_%5Cnu%2C1%29
 - `UNet` CNNs implemented in Keras:
-    - ![$(64,64,64) \sim (N_x, N_y, N_z)$](https://latex.codecogs.com/svg.latex?%2864%2C64%2C64%29%20%5Csim%20%28N_x%2C%20N_y%2C%20N_z%29)
-    - input and output tensor size: (64, 64, 64, 1) ~ (x, y, ![$\nu$](https://render.githubusercontent.com/render/math?math=%24%5Cnu%24), `num_bricks`) for 3D convolutions, (64,64,64) ~ (x,y,![$\nu$](https://render.githubusercontent.com/render/math?math=%24%5Cnu%24)) for 2D convolutions. 
+    - input and output tensor size: ![(64,64,64,1) \sim (N_x, N_y, N_\nu,$](https://latex.codecogs.com/svg.latex?%2864%2C64%2C64%2C1%29%20%5Csim%20%28N_x%2C%20N_y%2C%20N_%5Cnu%2C) `num_bricks`) for 3D convolutions, ![$(64,64,64) \sim (N_x, N_y, N_\nu)$](https://latex.codecogs.com/svg.latex?%2864%2C64%2C64%29%20%5Csim%20%28N_x%2C%20N_y%2C%20N_%5Cnu%29) for 2D convolutions. 
     - 3D and 2D convolutional model parts stored in respective `unet/unet_Nd.py` files
 - `configs`:
    - `.json` parent configuration file with cleaning method and analysis parameters
