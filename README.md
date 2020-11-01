@@ -9,7 +9,7 @@ Contents:
         - Principal Component Analysis Python script `pca_format.py` according to Alonso et al (2014) https://arxiv.org/abs/1409.8667
 
 - `UNet` CNNs implemented in Keras:
-    - ![brick](https://latex.codecogs.com/gif.download?%2864%2C64%2C64%29%20%5Csim%20%28N_x%2C%20N_y%2C%20N_z%29)
+    - ![$\nu$](https://latex.codecogs.com/gif.download?%2864%2C64%2C64%29%20%5Csim%20%28N_x%2C%20N_y%2C%20N_z%29)
     - input and output tensor size: (64, 64, 64, 1) ~ (x, y, ![$\nu$](https://render.githubusercontent.com/render/math?math=%24%5Cnu%24), `num_bricks`) for 3D convolutions, (64,64,64) ~ (x,y,![$\nu$](https://render.githubusercontent.com/render/math?math=%24%5Cnu%24)) for 2D convolutions. 
     - 3D and 2D convolutional model parts stored in respective `unet/unet_Nd.py` files
 - `configs`:
