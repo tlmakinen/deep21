@@ -66,7 +66,9 @@ params = {
 }
 
 params = configs['unet_params']
-  
+pca_params = configs['pca_params']  
+
+
 ########################################################################################################################
 import tensorflow.keras.backend as K
 def custom_loss(y_true, y_pred):
@@ -167,7 +169,7 @@ def train_unet(params, out_dir):
                         bin_min=params['bin_min'], 
                         bin_max=params['bin_max'], 
                         is_3d=True, data_type='train', 
-                        batch_size=N_BATCH, num_sets=3,
+                        batch_size=N_BATCH, num_sets=pca_params['num_sets'],
                         nu_skip=params['nu_skip'],
                         sample_size=sample_size,
                         nwinds=192,
@@ -180,7 +182,7 @@ def train_unet(params, out_dir):
                         bin_min=params['bin_min'],
                         bin_max=params['bin_max'], 
                         is_3d=True, data_type='val', 
-                        batch_size=N_BATCH, num_sets=3,
+                        batch_size=N_BATCH, num_sets=pca_params['num_sets'],
                         nu_skip=params['nu_skip'],
                         sample_size=sample_size,
                         nwinds=192,
