@@ -12,14 +12,17 @@ https://latex.codecogs.com/svg.latex?%2864%2C64%2C64%2C1%29%20%5Csim%20%28N_x%2C
     - input and output tensor size: ![(64,64,64,1) \sim (N_x, N_y, N_\nu,$](https://latex.codecogs.com/svg.latex?%2864%2C64%2C64%2C1%29%20%5Csim%20%28N_x%2C%20N_y%2C%20N_%5Cnu%2C) `num_bricks`) for 3D convolutions, ![$(64,64,64) \sim (N_x, N_y, N_\nu)$](https://latex.codecogs.com/svg.latex?%2864%2C64%2C64%29%20%5Csim%20%28N_x%2C%20N_y%2C%20N_%5Cnu%29) for 2D convolutions. 
     - 3D and 2D convolutional model parts stored in respective `unet/unet_Nd.py` files
 - `configs`:
-   - `.json` parent configuration file with cleaning method and analysis parameters
+   - `.json` parent configuration file with cleaning method and analysis parameters to be edited for user's directory
         
 - `data_utils`: 
    - Data loaded using `dataloaders.py` to generate noisy simulations in batch-sized chunks for network to train
-   - `my_callbacks.py` for computing transfer function accuracy during training
+   - `my_callbacks.py` for varying learning rate and computing custom metrics during training
 - `sim_info`: 
-   - frequency (`nuTable.txt`) and HEALPix window (`rearr_nsideN.npy`) indices for simulations
-- `train_nD.py`: scripts for training appropriate model. Modify Python dictionary input for appropriate number of training epochs
+   - frequency (`nuTable.txt`) and HEALPix window (`rearr_nsideN.npy`) indices for `CRIME` simulations
+- `train.py`: script for training UNet model. Modify Python dictionary input for appropriate number of training epochs
+
+- `run.sh`:
+   - sample slurm-based shell script for training ensemble of models in parallel
 
 - `hyperopt`: 
    - folder for hyperparameter tuning on given dataset
