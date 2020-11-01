@@ -4,7 +4,7 @@ Repository for deep convolutional neural networks (CNN) to separate cosmological
 Browser-based tutorial available via this [Google Colab notebook](https://colab.research.google.com/drive/1wQnmelM33Qjq-nHeVD9JkTHXER1PAJM0?hl=en#scrollTo=AL9qQvzFPXcT)
 
 Contents:
-- `pca_preprocessing`: 
+- `pca_processing`: 
 	- `HEALPix` simulation data processing from `.fits` to `.npy` voxel format.
 	- Cosmological and foreground simulations generated using the [CRIME package](http://intensitymapping.physics.ox.ac.uk/CRIME.html)
         - Principal Component Analysis Python script `pca_format.py` according to [Alonso et al (2014)](https://arxiv.org/abs/1409.8667)
