@@ -1,4 +1,8 @@
 # deep21
+
+![unet-diagram](https://raw.githubusercontent.com/tlmakinen/deep21/master/tutorial/panels-white.gif)
+
+
 Repository for deep convolutional neural networks (CNN) to separate cosmological signal from high foreground noise contamination for 21-centimeter large-scale structure observations in the radio spectrum.
 
 Read the full publication here: [https://arxiv.org/abs/2010.15843](https://arxiv.org/abs/2010.15843)
