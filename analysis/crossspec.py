@@ -71,6 +71,9 @@ if __name__ == '__main__':
 
         # outdir different so that we don't mess up last run
         outdir = drct + 'new_run/'
+
+        if not os.path.exists(outdir):
+            os.mkdir(outdir)
         
         print('working on %d simulations, writing to %s'%(num_sims, drct))
 
@@ -104,17 +107,10 @@ if __name__ == '__main__':
                                                                 nu_arr=info_path+'nuTable.txt',
                                                                 NU_AVG=NU_AVG, N_NU=N_NU, out_dir=outdir + 'angular/', 
                                                                 name='nn', save_spec=True)
-        ensemble_predicted_Cl.append(nn_pred_Cl)
-        ensemble_res_Cl.append(nn_res_Cl)
-        ensemble_cross_Cl.append(nn_cross_Cl)
+            ensemble_predicted_Cl.append(nn_pred_Cl)
+            ensemble_res_Cl.append(nn_res_Cl)
+            ensemble_cross_Cl.append(nn_cross_Cl)
 
-            _, _, nn_res_Cl = angularCrossSpec(cosmo, prediction, 
-                                                                bin_min=bin_min, bin_max=bin_max, 
-                                                                rearr=info_path + rearr_file, 
-                                                                nu_arr=info_path+'nuTable.txt', 
-                                                                NU_AVG=NU_AVG, N_NU=N_NU, out_dir=outdir + 'angular/', 
-                                                                name='nn', save_spec=True)
-            ensemble_cross_Cl.append(nn_res_Cl)
             
         # save all ensemble-computed angular power spectra
         np.save(outdir + 'ensemble_predicted_Cls', np.array(ensemble_predicted_Cl))
