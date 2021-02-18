@@ -17,53 +17,48 @@ from analysis_library import *
 import json
 
 
-# OPEN CONFIG FILE
-config_file_path = sys.argv[2] + 'configs_deep21.json'
-
-with open(config_file_path) as f:
-        configs = json.load(f)
-
-dir_configs = configs["directory_configs"]
-pca_configs = configs["pca_params"]
-unet_configs = configs["unet_params"]
-analysis_configs = configs["analysis_params"]
 
 ###############################################################################
 
 ###############################################################################
 # Define all input and output dirs
-model_path = unet_configs['model_path']
-data_path = analysis_params['data_path']
-info_path = analysis_params['info_path']
 
-# inputs for data and models to test
-#model_path = '/mnt/home/tmakinen/jobs2/nu_avg/results_logp_1_161/'
-#data_path = '/mnt/home/tmakinen/ceph/pca_ska/avg/amp_test/'
-#info_path = '/mnt/home/tmakinen/repositories/deep21/sim_info/'
+info_path = '/mnt/home/tmakinen/repositories/deep21/sim_info/'
+
+parent_dir = '/mnt/home/tmakinen/ceph/deep21_results/unpolarized/'
 
 rearr_file = info_path +  'rearr_nside4.npy'
-###############################################################################
+
+# loop through existing directories
+directories = ['alpha_minus/', 'alpha_plus/', 
+                'beta_minus/', 'beta_plus/']
+
+tests = ['test_%03d/'%(int(i+1)) for i in range(10)]
+
+directories += tests
+
+directories = [parent_dir + d for d in directories]
+
+# parallelize over directories
+directories = directories[int(sys.argv[1])]
 
 ###############################################################################
 
-# make outdirs for each 
-outdir = analysis_params['out_dir'] + 'test_%03d/'%(int(sys.argv[1])) #'/mnt/home/tmakinen/ceph/deep21_results/unpolarized/test_%03d/'%(int(sys.argv[1]))
-
-
+###############################################################################
 
 
 # data parameters
-N_NU = pca_configs['N_NU_OUT']
-NU_AVG = pca_configs['NU_AVG']
-WINDOW_NSIDE = pca_configs['WINDOW_NSIDE']
-N_WINDS = pca_configs['N_WINDS']
+N_NU = 64
+NU_AVG = 3
+WINDOW_NSIDE = 4
+N_WINDS = 192
 
-bin_min = unet_configs['bin_min']
-bin_max = unet_configs['bin_max']
-
+bin_min = 0
+bin_max = 192
 num_nets = 9
 num_sims = 1
-sim_num = 90 + int(sys.argv[1])
+
+#sim_num = 90 + int(sys.argv[1])
 
 # remove mean for radial Pka ?
 remove_mean = True
@@ -72,30 +67,28 @@ if __name__ == '__main__':
     
     t1 = time.time()
     
-    for l,fg_type in enumerate(['plus']):
-        
-        print('working on %d simulations, writing to %s'%(num_sims, outdir))
+    for l,drct in enumerate(directories):
 
-        pca3 = np.concatenate([np.load(data_path + 'pca3_sim%03d.npy'%(sim_num)) for o in range(num_sims)])
-        pca6 = np.concatenate([np.load(data_path + 'pca6_sim%03d.npy'%(sim_num)) for o in range(num_sims)])
-        cosmo = np.concatenate([np.load(data_path + 'cosmo_sim%03d.npy'%(sim_num)) for o in range(num_sims)])
-        noise = np.concatenate([np.load(data_path + 'cosmo_noisy_sim%03d.npy'%(sim_num)) for o in range(num_sims)])
+        # outdir different so that we don't mess up last run
+        outdir = drct + 'new_run/'
+        
+        print('working on %d simulations, writing to %s'%(num_sims, drct))
+
+        # load maps
+        pca3 = np.load(drct + 'pca3.npy')
+        pca6 = np.load(drct + 'pca6.npy')
+        cosmo = np.load(drct + 'cosmo.npy')
+        noise = np.load(drct + 'noise.npy')
 
         # make nn prediction
-        nn_preds = ensemble_prediction(model_path, num_nets, pca3, outfname=outdir)
+        nn_preds = np.load(drct + 'nn_preds.npy')
 
         # compute ensemble weights
-        w_mse = [1./np.mean(compute_mse(cosmo, n)) for n in nn_preds]
-        np.save(outdir + 'ensemble_weights', np.array(w_mse))
+        w_mse = np.load(drct + 'ensemble_weights.npy')
 
         # now average maps together according to weights
         ensemble_predicted_map = np.average(nn_preds, weights=w_mse, axis=0)
         
-        # save maps for easy access
-        np.save(outdir + 'pca6', pca6)
-        np.save(outdir + 'pca3', pca3)
-        np.save(outdir + 'noise', noise)
-        np.save(outdir + 'cosmo', cosmo)
         
         # compute power spectra 
         ensemble_predicted_Cl = []
@@ -105,22 +98,22 @@ if __name__ == '__main__':
         ensemble_cross_Cl = []
 
         for m,prediction in enumerate(nn_preds):
-            cosmo_Cl, nn_pred_Cl, nn_res_Cl = angularPowerSpec(cosmo, prediction, 
+            cosmo_Cl, nn_pred_Cl, nn_res_Cl, nn_cross_Cl = angularPowerSpec(cosmo, prediction, 
                                                                 bin_min=bin_min, bin_max=bin_max, 
                                                                 rearr=info_path + rearr_file, 
                                                                 nu_arr=info_path+'nuTable.txt',
                                                                 NU_AVG=NU_AVG, N_NU=N_NU, out_dir=outdir + 'angular/', 
                                                                 name='nn', save_spec=True)
-            ensemble_predicted_Cl.append(nn_pred_Cl)
-            ensemble_residual_Cl.append(nn_res_Cl)
+        ensemble_predicted_Cl.append(nn_pred_Cl)
+        ensemble_res_Cl.append(nn_res_Cl)
+        ensemble_cross_Cl.append(nn_cross_Cl)
 
-            cosmo_Cl, nn_pred_Cl, nn_res_Cl = angularCrossSpec(cosmo, prediction, 
+            _, _, nn_res_Cl = angularCrossSpec(cosmo, prediction, 
                                                                 bin_min=bin_min, bin_max=bin_max, 
                                                                 rearr=info_path + rearr_file, 
                                                                 nu_arr=info_path+'nuTable.txt', 
-                                                                NU_AVG=5, N_NU=32, out_dir=outdir + 'angular/', 
-                                                                name='nn', save_spec=False)
-            ensemble_predicted_Cl.append(nn_pred_Cl)
+                                                                NU_AVG=NU_AVG, N_NU=N_NU, out_dir=outdir + 'angular/', 
+                                                                name='nn', save_spec=True)
             ensemble_cross_Cl.append(nn_res_Cl)
             
         # save all ensemble-computed angular power spectra
@@ -129,7 +122,7 @@ if __name__ == '__main__':
         np.save(outdir + 'ensemble_cross_Cls', np.array(ensemble_cross_Cl))
 
         # compute power spectra for PCA method
-        _, pca6_pred_Cl, pca6_res_Cl = angularPowerSpec(cosmo, pca6, 
+        _, pca6_pred_Cl, pca6_res_Cl, pca6_cross_Cl = angularPowerSpec(cosmo, pca6, 
                                                         bin_min=bin_min, bin_max=bin_max, 
                                                         rearr=info_path+rearr_file, 
                                                         nu_arr=info_path+'/nuTable.txt', 
@@ -137,7 +130,7 @@ if __name__ == '__main__':
                                                         out_dir=outdir + 'angular/', 
                                                         name='pca6', save_spec=True)
 
-        _, noise_Cl, noise_res_Cl = angularPowerSpec(cosmo, noise, 
+        _, noise_Cl, noise_res_Cl, noise_cross_Cl = angularPowerSpec(cosmo, noise, 
                                                     bin_min=bin_min, bin_max=bin_max, 
                                                     rearr=info_path+rearr_file, 
                                                     nu_arr=info_path+'nuTable.txt',
@@ -193,11 +186,15 @@ if __name__ == '__main__':
         pca6_cross = radialPka(pca6, n_nu=N_NU, 
                                 remove_mean=remove_mean, cross_spec=cosmo)
 
-        save all cross-spectra
+        pca3_cross = radialPka(pca3, n_nu=N_NU, 
+                                remove_mean=remove_mean, cross_spec=cosmo)
+
+        #save all cross-spectra
      
         np.save(outdir + 'noise_cross', np.array(noise_cross))
         np.save(outdir + 'nn_cross', np.array(nn_cross))
         np.save(outdir + 'pca6_cross', np.array(pca6_pka))
+        np.save(outdir + 'pca3_cross', np.array(pca3_pka))
 
 
 
