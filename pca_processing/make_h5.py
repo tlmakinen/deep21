@@ -3,6 +3,7 @@ import numpy as np
 import h5py
 import matplotlib.pyplot as plt
 import sys,os
+import json
 
 t1 = time.time()
 
@@ -25,7 +26,7 @@ data_shape = (pca_configs["N_WINDS"], unet_configs["x_dim"],
               unet_configs["x_dim"], unet_configs["nu_dim"], 2)
 
 # input paths
-path = dir_configs["data_path"] + "data_%d"%(j+1)
+path = dir_configs["data_path"] + "data"
 
 # for dataset indexing
 dat_type = ['test', "train", "val"]

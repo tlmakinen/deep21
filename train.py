@@ -36,37 +36,16 @@ with open(config_file_path) as f:
 ########################################################################################################################
 
 # DEFINE INPUT PARAMS
-params = {
-    'bin_min'       : 1,
-    'bin_max'       : 193,
-    'nu_start'      : 1,
-    'nu_skip'       : 3,
-    'nu_dim'        : 64,
-    'x_dim'         : 64,
-    'n_filters'     : 32,
-    'conv_width'    : 3,
-    'network_depth' : 6,
-    'batch_size'    : 16,
-    'num_epochs'    : 50,
-    'act'           : 'relu', #tf.keras.layers.PReLU(),
-    'lr'            : 0.0002, #0.005647691873692045,
-    'wd'            : 1e-5,
-    'batchnorm_in'  : True,
-    'batchnorm_out' : True,
-    'batchnorm_up'  : True,
-    'batchnorm_down': True,
-    'momentum'      :  0.021165395601698535,
+run_params = {
     'model_num'     : int(sys.argv[1]),
-    'data_path'     : '/mnt/home/tmakinen/ceph/pca_ska/nside4_avg/',
-    'out_dir'       : '/mnt/home/tmakinen/ceph/deep21_results/unpolarized/',
-    'model_path'    : '/mnt/home/tmakinen/ceph/deep21_results/unpolarized/unet_results_1_193/',
-    'nu_indx'       : None,
     'load_model'    : False,
-    'noise_level'   : None
 }
 
 params = configs['unet_params']
-  
+pca_params = configs['pca_params']  
+# update parameter dict
+params.update(run_params)
+
 ########################################################################################################################
 import tensorflow.keras.backend as K
 def custom_loss(y_true, y_pred):
@@ -167,7 +146,7 @@ def train_unet(params, out_dir):
                         bin_min=params['bin_min'], 
                         bin_max=params['bin_max'], 
                         is_3d=True, data_type='train', 
-                        batch_size=N_BATCH, num_sets=3,
+                        batch_size=N_BATCH, num_sets=pca_params['num_sets'],
                         nu_skip=params['nu_skip'],
                         sample_size=sample_size,
                         nwinds=192,
@@ -180,7 +159,7 @@ def train_unet(params, out_dir):
                         bin_min=params['bin_min'],
                         bin_max=params['bin_max'], 
                         is_3d=True, data_type='val', 
-                        batch_size=N_BATCH, num_sets=3,
+                        batch_size=N_BATCH, num_sets=pca_params['num_sets'],
                         nu_skip=params['nu_skip'],
                         sample_size=sample_size,
                         nwinds=192,

@@ -13,10 +13,27 @@ import sys,os
 
 from analysis_library import *
 
+import json
+
+
+# OPEN CONFIG FILE
+config_file_path = sys.argv[2] + 'configs_deep21.json'
+
+with open(config_file_path) as f:
+        configs = json.load(f)
+
+dir_configs = configs["directory_configs"]
+pca_configs = configs["pca_params"]
+unet_configs = configs["unet_params"]
+analysis_configs = configs["analysis_params"]
+
 ###############################################################################
 
 ###############################################################################
 # Define all input and output dirs
+model_path = unet_configs['model_path']
+data_path = dir_configs['data_path']
+info_path = dir_configs['info_path']
 
 # inputs for data and models to test
 model_path = '/mnt/home/tmakinen/jobs2/nu_avg/results_logp_1_161/'

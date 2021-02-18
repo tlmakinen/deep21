@@ -1,3 +1,0 @@
-# sample slurm command for disbatch-enabled processing
-
-sbatch -p cca -N 5 -t 0-0:20:0 disBatch -c 3 taskFile
