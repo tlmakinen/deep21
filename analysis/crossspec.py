@@ -38,7 +38,7 @@ tests = ['test_%03d/'%(int(i+1)) for i in range(10)]
 directories += tests
 
 directories = [parent_dir + d for d in directories]
-
+print('dirs:', directories)
 # parallelize over directories
 directories = directories[int(sys.argv[1])]
 
@@ -67,21 +67,25 @@ if __name__ == '__main__':
     
     t1 = time.time()
     
-    for l,drct in enumerate(directories):
+    for l,drct in enumerate([directories]):
 
         # outdir different so that we don't mess up last run
         outdir = drct + 'new_run/'
-
+        print(outdir)
         if not os.path.exists(outdir):
             os.mkdir(outdir)
         
-        print('working on %d simulations, writing to %s'%(num_sims, drct))
+        print('working on %d simulations, writing to %s'%(num_sims, outdir))
 
         # load maps
         pca3 = np.load(drct + 'pca3.npy')
         pca6 = np.load(drct + 'pca6.npy')
         cosmo = np.load(drct + 'cosmo.npy')
-        noise = np.load(drct + 'noise.npy')
+        
+        if 'alpha' and 'beta' in outdir:
+            noise = np.load(drct + 'noise.npy')
+        else:
+            noise = np.zeros(cosmo.shape)        
 
         # make nn prediction
         nn_preds = np.load(drct + 'nn_preds.npy')
@@ -103,12 +107,12 @@ if __name__ == '__main__':
         for m,prediction in enumerate(nn_preds):
             cosmo_Cl, nn_pred_Cl, nn_res_Cl, nn_cross_Cl = angularPowerSpec(cosmo, prediction, 
                                                                 bin_min=bin_min, bin_max=bin_max, 
-                                                                rearr=info_path + rearr_file, 
+                                                                rearr=rearr_file, 
                                                                 nu_arr=info_path+'nuTable.txt',
                                                                 NU_AVG=NU_AVG, N_NU=N_NU, out_dir=outdir + 'angular/', 
                                                                 name='nn', save_spec=True)
             ensemble_predicted_Cl.append(nn_pred_Cl)
-            ensemble_res_Cl.append(nn_res_Cl)
+            ensemble_residual_Cl.append(nn_res_Cl)
             ensemble_cross_Cl.append(nn_cross_Cl)
 
             
@@ -120,7 +124,7 @@ if __name__ == '__main__':
         # compute power spectra for PCA method
         _, pca6_pred_Cl, pca6_res_Cl, pca6_cross_Cl = angularPowerSpec(cosmo, pca6, 
                                                         bin_min=bin_min, bin_max=bin_max, 
-                                                        rearr=info_path+rearr_file, 
+                                                        rearr=rearr_file, 
                                                         nu_arr=info_path+'/nuTable.txt', 
                                                         NU_AVG=NU_AVG, N_NU=N_NU, 
                                                         out_dir=outdir + 'angular/', 
@@ -128,7 +132,7 @@ if __name__ == '__main__':
 
         _, noise_Cl, noise_res_Cl, noise_cross_Cl = angularPowerSpec(cosmo, noise, 
                                                     bin_min=bin_min, bin_max=bin_max, 
-                                                    rearr=info_path+rearr_file, 
+                                                    rearr=rearr_file, 
                                                     nu_arr=info_path+'nuTable.txt',
                                                     NU_AVG=NU_AVG, N_NU=N_NU, 
                                                     out_dir=outdir + 'angular/', 
