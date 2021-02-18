@@ -145,19 +145,19 @@ if __name__ == '__main__':
    
         # finally, compute cross-spectra
 
-        #cosmo_pka = radialPka(cosmo, n_nu=N_NU, remove_mean=remove_mean)
+        cosmo_pka = radialPka(cosmo, n_nu=N_NU, remove_mean=remove_mean)
 
-      #  noise_cross = radialPka(noise, n_nu=N_NU, remove_mean=remove_mean, cross_spec=cosmo)
+        noise_cross = radialPka(noise, n_nu=N_NU, remove_mean=remove_mean, cross_spec=cosmo)
 
-      #  nn_cross = [np.array(radialPka(m, n_nu=N_NU, remove_mean=remove_mean, cross_spec=cosmo)) for m in nn_preds]
+        nn_cross = [np.array(radialPka(m, n_nu=N_NU, remove_mean=remove_mean, cross_spec=cosmo)) for m in nn_preds]
 
-       # pca6_cross = radialPka(pca6, n_nu=N_NU, remove_mean=remove_mean, cross_spec=cosmo)
+        pca6_cross = radialPka(pca6, n_nu=N_NU, remove_mean=remove_mean, cross_spec=cosmo)
 
-        # save all cross-spectra
-        
-       # np.save(outdir + 'noise_cross', np.array(noise_cross))
-       # np.save(outdir + 'nn_cross', np.array(nn_cross))
-       # np.save(outdir + 'pca6_cross', np.array(pca6_pka))
+        save all cross-spectra
+     
+        np.save(outdir + 'noise_cross', np.array(noise_cross))
+        np.save(outdir + 'nn_cross', np.array(nn_cross))
+        np.save(outdir + 'pca6_cross', np.array(pca6_pka))
 
 
 

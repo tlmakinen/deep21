@@ -167,6 +167,105 @@ def angularPowerSpec(y_true, prediction, bin_min, bin_max, nu_arr, rearr, nu_ran
  
         
     return np.array(cosmo_Cl), np.array(pred_Cl), np.array(res_Cl)
+
+    
+###############################################################################
+
+###############################################################################
+# This routine computes the cross-angular power spectra statistics for a cleaning 
+# method and corresponding true map
+
+
+def angularCrossSpec(y_true, prediction, bin_min, bin_max, nu_arr, rearr, nu_range=161, nwinds=192, nsims=1, N_NU=64, 
+                        NU_AVG=3,out_dir='', name='', save_spec=False, remove_mean=False):
+    
+    rearr = np.load(rearr)
+    nwinds = nwinds
+    N_NU = N_NU
+    NU_START = bin_min
+    NU_STOP = N_NU*NU_AVG  
+    assert(N_NU == (NU_STOP - NU_START) // NU_AVG)
+
+    #N_SKIP = (N_STOP - N_START) // N_NU
+    # get the spetrum of frequenies covered in units of MHz
+    (bn,nu_bot,nu_top,z_bot,z_top) = np.loadtxt(nu_arr).T
+    nu_arr = ((nu_bot + nu_top)/2.)[:-1]
+    nu_arr = nu_arr[NU_START:NU_STOP]#[::N_SKIP]
+    nu_arr = np.array([np.mean(i,axis=0) for i in np.split(nu_arr,N_NU)])
+
+    # true map
+    cosmo_test = (np.array_split(y_true, y_true.shape[0] / nwinds))
+
+    # cleaned map
+    y_pred = (np.array_split(prediction, prediction.shape[0] / nwinds))
+
+    # residual map
+    y_res = (np.array_split((prediction - y_true), y_true.shape[0] / nwinds))
+
+
+    cosmo_Cl = []   # Cls for cosmo spectra
+    pred_Cl  = []   # Cls for predicted spectra
+    res_Cl   = []   # Cls for residual spectra
+    cross_Cl = []
+  
+    for i in range(len(nu_arr)):
+        
+        
+        # Get Cls for COSMO spectrum
+        # loops over nsims test set skies
+        cos = []
+        for i,cosmo in enumerate(cosmo_test):
+            if remove_mean:
+                cosmo = cosmo - np.mean(cosmo)
+            
+            cosmo0 = (cosmo.T[i].T).flatten()
+            cosmo0 = cosmo0[rearr]
+            alm_cosmo = hp.map2alm(cosmo0)
+            Cl_cosmo = hp.alm2cl(alm_cosmo)
+            cos.append(Cl_cosmo)
+        
+        # save average of Cl over nsims
+        cosmo_Cl.append(np.mean(cos, axis=0))
+
+
+        # Get Cls for the predicted maps
+        predicted_cl = []
+        for y in y_pred:
+            if remove_mean:
+                y = y - np.mean(y)
+            y0 = (y.T[i].T).flatten()
+            y0 = y0[rearr]
+            alm_y = hp.map2alm(y0)
+            Cl_y = hp.alm2cl(alm_y)
+            predicted_cl.append(Cl_y)
+            
+
+        # save average of Cl over nsims
+        pred_Cl.append(np.mean(predicted_cl, axis=0))
+        
+        # Get Cls for the PRED x COSMO maps
+        for m,cosmo in enumerate(cosmo_test):
+            
+            cosmo0 = (cosmo.T[i].T).flatten()[rearr]
+            pred0 = y_pred[m].T[i].T.flatten()[rearr]
+            alm_cosmo = hp.map2alm(cosmo0)
+            alm_pred = hp.map2alm(pred0)
+            Cls = hp.alm2cl(alms1=alm_cosmo, alms2=alm_pred)
+            cross_Cl.append(Cls)
+        
+
+        # save outputs 
+        if save_spec:
+            
+            if not os.path.exists(out_dir):
+                os.mkdir(out_dir)
+
+            np.save(out_dir + name + '_cl_cross_nu_%03d'%(nu_arr[i]), np.array(pred_Cl[-1]))
+            np.save(out_dir + 'cl_cosmo_nu_%03d'%(nu_arr[i]), np.array(cosmo_Cl[-1]))
+ 
+        
+    return np.array(cosmo_Cl), np.array(pred_Cl), np.array(cross_Cl)
+
 ###############################################################################
 
 ###############################################################################
@@ -215,11 +314,11 @@ def radialPka(in_map, n_nu=64, k_min=0.01,
             map_s2= np.reshape(map_s2, (V, n_nu))
             
             # fft first map
-            delta1 = np.sum(np.array([np.abs(fftpack.fft(j))**2 for j in map_s1]),axis=0) / V
-            # ifft second map
-            delta2 = np.sum(np.array([(fftpack.ifft(j))**2 for j in map_s2]),axis=0) / V
-   
-            cross_spec = np.real(delta1*delta2);  del delta2,delta1
+            delta1 = np.array([(fftpack.fft(j)) for j in map_s1])
+            # ifft second map -- note that we divide by N^2 here
+            delta2 = np.array([(fftpack.ifft(j)*len(j)) for j in map_s2])
+            
+            cross_spec = np.mean(np.abs(np.real(delta1*delta2)), axis=0)
                 
             mid = (len(cross_spec) // 2)+1
             out.append(cross_spec[1:mid])  # ignore first mode
@@ -242,7 +341,7 @@ def radialPka(in_map, n_nu=64, k_min=0.01,
 
             map_s= np.reshape(map_s, (V, n_nu))
 
-            power_spec = np.sum(np.array([np.abs(fftpack.fft(j))**2 for j in map_s]),axis=0) / V
+            power_spec = np.mean(np.array([np.abs(fftpack.fft(j))**2 for j in map_s]),axis=0) #/ V
 
             mid = (len(power_spec) // 2)+1
             out.append(power_spec[1:mid])  # ignore first mode
