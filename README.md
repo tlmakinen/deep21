@@ -36,3 +36,7 @@ Contents:
 - `hyperopt`: 
    - folder for hyperparameter tuning on given dataset
 
+Training Data Availability:
+
+All 100 full-sky simulations used for this analysis are now publicly available [on Globus](https://app.globus.org/file-manager?origin_id=cce6012c-14c2-11ec-90b8-41052087bc27&origin_path=%2F) under the folder `ska2`. Polarised foregrounds and another set of data are available under `ska_polarized` and `ska_sims` respectively. 
+
