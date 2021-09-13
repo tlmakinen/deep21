@@ -42,11 +42,11 @@ All 100 full-sky simulations used for this analysis are now publicly available [
 
 The training data used in the published UNet is located under the folder `ska`. Each of the independently-seeded 100 simulations is located under a numbered folder. For instance, for simulation 42's data is structured as:
 ```
-`sim_42`
-	`cosmo`
-		`cosmo_i.fits`
-	`fg`
-		`fg_i.fits`
+|`sim_42`
+	|`cosmo`
+		|`cosmo_i.fits`
+	|`fg`
+		|`fg_i.fits`
 
 ```
 where `i` indexes frequencies from 350 to 691 MHz. To feed the data into `pca_script.py`, the `configs/config.json` file should be modified to point to `ska2`.
